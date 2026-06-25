@@ -1,0 +1,19 @@
+{
+  "name": "ramble",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Say it. I'll sort it. — a voice brain-dump that turns rambling speech into clean, scheduled tasks.",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "multer": "^2.0.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.3"
+  }
+}

@@ -1,0 +1,22 @@
+# Secrets — never commit
+.env
+.env.*.local
+
+# Dependencies
+node_modules/
+
+# Local data (personal tasks/projects/memory)
+data/
+
+# Build output
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Agent / tool local state
+.sxcode/
+
+# Logs & OS cruft
+*.log
+.DS_Store
+Thumbs.db
