@@ -49,6 +49,15 @@ const PROJECT_COLORS = ["#9b7cff", "#5fe0d0", "#ffb454", "#ff6b9d", "#5fd3a3", "
 const MAX_CORRECTIONS = 60;
 
 const app = express();
+// The widget's frontend is served from tauri:// and calls this server cross-origin, so
+// allow it. Localhost-only tool — a permissive policy is fine here.
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
 app.use(express.json({ limit: "1mb" }));
 // Dev: ./public. Packaged widget: the Tauri shell passes RAMBLE_PUBLIC_DIR (the
 // bundled frontend in app resources), since the sidecar is a compiled binary with no

@@ -21,6 +21,16 @@ struct RecordingState(Mutex<bool>);
 #[derive(Default)]
 struct Sidecar(Mutex<Option<CommandChild>>);
 
+/// The port the sidecar is listening on, so the frontend can reach /api/* (the page
+/// itself is served from tauri://, a different origin). 0 = same origin (dev/browser).
+#[derive(Default)]
+struct ApiPort(Mutex<u16>);
+
+#[tauri::command]
+fn get_api_port(state: tauri::State<ApiPort>) -> u16 {
+    state.0.lock().map(|g| *g).unwrap_or(0)
+}
+
 /// Frontend calls this when recording starts/stops so the shell knows whether it's safe
 /// to auto-hide on blur. See ADR-0002 (same frontend in browser + webview).
 #[tauri::command]
@@ -126,6 +136,11 @@ fn find_file(root: &Path, name: &str, max_depth: usize) -> Option<PathBuf> {
 /// `devUrl` and `beforeDevCommand` runs the server. See ADR-0002.
 fn start_backend(app: &AppHandle) {
     let port = free_port();
+    if let Some(state) = app.try_state::<ApiPort>() {
+        if let Ok(mut guard) = state.0.lock() {
+            *guard = port;
+        }
+    }
 
     let data_dir = app
         .path()
@@ -190,8 +205,8 @@ fn start_backend(app: &AppHandle) {
         }
     }
 
-    // Wait for the server to accept connections, then navigate the webview to it.
-    let handle = app.clone();
+    // Log when the server is reachable (the frontend polls /api/health itself and is
+    // served from tauri://, so we no longer navigate the webview to the sidecar).
     std::thread::spawn(move || {
         let mut connected = false;
         for _ in 0..120 {
@@ -202,11 +217,6 @@ fn start_backend(app: &AppHandle) {
             std::thread::sleep(Duration::from_millis(150));
         }
         log::info!("backend reachable on 127.0.0.1:{port}: {connected}");
-        if let Some(window) = handle.get_webview_window("main") {
-            if let Ok(url) = format!("http://127.0.0.1:{port}").parse() {
-                let _ = window.navigate(url);
-            }
-        }
     });
 }
 
@@ -217,7 +227,12 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(RecordingState::default())
         .manage(Sidecar::default())
-        .invoke_handler(tauri::generate_handler![set_recording, set_expanded])
+        .manage(ApiPort::default())
+        .invoke_handler(tauri::generate_handler![
+            set_recording,
+            set_expanded,
+            get_api_port
+        ])
         .setup(|app| {
             // Log in release too, to a file in the app log dir, so we can diagnose the
             // packaged build (the dev machine can't run it — Smart App Control).

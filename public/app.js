@@ -1,5 +1,15 @@
 // ===== Ramble — client (v2) =====
 
+// API base. Browser/dev: same origin (""). Tauri widget: the frontend is served from
+// tauri://, so /api/* must be routed to the sidecar on 127.0.0.1:<port> (injected on
+// boot). This shim rewrites every /api/* fetch so the call sites stay unchanged.
+let API_BASE = "";
+const _fetch = window.fetch.bind(window);
+window.fetch = (input, init) => {
+  if (typeof input === "string" && input.startsWith("/api/")) input = API_BASE + input;
+  return _fetch(input, init);
+};
+
 const $ = (id) => document.getElementById(id);
 
 const els = {
@@ -707,7 +717,29 @@ async function refresh() {
   renderTasks();
 }
 
+// In the widget, ask the shell which port the sidecar is on, then wait for it to boot.
+async function resolveApi() {
+  if (!IS_WIDGET) return;
+  try {
+    const port = await window.__TAURI__.core.invoke("get_api_port");
+    if (port) API_BASE = `http://127.0.0.1:${port}`;
+  } catch {}
+}
+
+async function waitForBackend() {
+  for (let i = 0; i < 80; i++) {
+    try {
+      const r = await fetch("/api/health");
+      if (r.ok) return true;
+    } catch {}
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return false;
+}
+
 async function boot() {
+  await resolveApi();
+  await waitForBackend();
   try {
     const health = await (await fetch("/api/health")).json();
     if (!health.groq) {
