@@ -15,8 +15,8 @@
       {
         "label": "main",
         "title": "Ramble",
-        "width": 400,
-        "height": 600,
+        "width": 104,
+        "height": 104,
         "minWidth": 72,
         "minHeight": 72,
         "resizable": false,

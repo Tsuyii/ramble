@@ -6,7 +6,7 @@ use std::time::Duration;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, PhysicalPosition, WebviewWindow, WindowEvent,
+    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindow, WindowEvent,
 };
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use tauri_plugin_shell::process::CommandChild;
@@ -32,6 +32,24 @@ fn set_recording(state: tauri::State<RecordingState>, recording: bool) {
 
 const MARGIN: i32 = 24;
 const TASKBAR_ALLOWANCE: f64 = 48.0;
+
+// Orb (collapsed) vs panel (expanded) window sizes.
+const ORB_SIZE: f64 = 104.0;
+const PANEL_W: f64 = 400.0;
+const PANEL_H: f64 = 600.0;
+
+/// Resize between the small orb and the full panel, keeping it pinned bottom-right.
+/// Called by the frontend when it switches modes.
+#[tauri::command]
+fn set_expanded(window: WebviewWindow, expanded: bool) {
+    let size = if expanded {
+        LogicalSize::new(PANEL_W, PANEL_H)
+    } else {
+        LogicalSize::new(ORB_SIZE, ORB_SIZE)
+    };
+    let _ = window.set_size(size);
+    position_bottom_right(&window);
+}
 
 /// Pin the widget to the bottom-right of the current monitor, above the taskbar.
 fn position_bottom_right(window: &WebviewWindow) {
@@ -60,14 +78,9 @@ fn show_and_record(app: &AppHandle) {
     }
 }
 
-fn toggle(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        if window.is_visible().unwrap_or(false) {
-            let _ = window.hide();
-        } else {
-            show_and_record(app);
-        }
-    }
+/// Bring the widget forward and expand it (the frontend handles the expand + record).
+fn summon(app: &AppHandle) {
+    show_and_record(app);
 }
 
 /// Pick a free TCP port (bind to :0, read the assigned port, release it).
@@ -204,7 +217,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(RecordingState::default())
         .manage(Sidecar::default())
-        .invoke_handler(tauri::generate_handler![set_recording])
+        .invoke_handler(tauri::generate_handler![set_recording, set_expanded])
         .setup(|app| {
             // Log in release too, to a file in the app log dir, so we can diagnose the
             // packaged build (the dev machine can't run it — Smart App Control).
@@ -221,9 +234,10 @@ pub fn run() {
 
             // ---- Tray icon + menu ----
             let show_i = MenuItem::with_id(app, "show", "Show Ramble", true, None::<&str>)?;
+            let hide_i = MenuItem::with_id(app, "hide", "Hide widget", true, None::<&str>)?;
             let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_i, &settings_i, &quit_i])?;
+            let menu = Menu::with_items(app, &[&show_i, &hide_i, &settings_i, &quit_i])?;
 
             TrayIconBuilder::with_id("main-tray")
                 .icon(app.default_window_icon().unwrap().clone())
@@ -231,7 +245,12 @@ pub fn run() {
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show" => show_and_record(app),
+                    "show" => summon(app),
+                    "hide" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.hide();
+                        }
+                    }
                     "settings" => {
                         if let Some(w) = app.get_webview_window("main") {
                             let _ = w.show();
@@ -249,7 +268,7 @@ pub fn run() {
                         ..
                     } = event
                     {
-                        toggle(tray.app_handle());
+                        summon(tray.app_handle());
                     }
                 })
                 .build(app)?;
@@ -259,7 +278,7 @@ pub fn run() {
             app.global_shortcut()
                 .on_shortcut(hotkey, move |app, _shortcut, event| {
                     if event.state() == ShortcutState::Pressed {
-                        toggle(app);
+                        summon(app);
                     }
                 })?;
 
@@ -276,7 +295,7 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Auto-hide on blur, but stay pinned while recording.
+            // Collapse the panel back to the orb on blur, but stay expanded while recording.
             if let WindowEvent::Focused(false) = event {
                 let recording = window
                     .app_handle()
@@ -286,7 +305,7 @@ pub fn run() {
                     .map(|g| *g)
                     .unwrap_or(false);
                 if !recording {
-                    let _ = window.hide();
+                    let _ = window.emit("ramble:collapse", ());
                 }
             }
         })

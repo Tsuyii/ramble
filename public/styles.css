@@ -1197,3 +1197,103 @@ body {
   gap: 10px;
   margin-top: 22px;
 }
+
+/* ===== Widget (Tauri orb) ===== */
+
+/* In a plain browser none of this applies — the orb stays hidden. */
+.widget-orb {
+  display: none;
+}
+
+body.widget {
+  background: transparent;
+  overflow: hidden;
+}
+
+/* ORB (collapsed): the default widget state (no .panel) */
+body.widget:not(.panel) .grain,
+body.widget:not(.panel) .topbar,
+body.widget:not(.panel) .stage,
+body.widget:not(.panel) .toast {
+  display: none !important;
+}
+body.widget:not(.panel) .widget-orb {
+  display: grid;
+  place-items: center;
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: 88px;
+  height: 88px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #b49bff 0%, var(--accent) 44%, #6a4bd0 100%);
+  box-shadow:
+    0 10px 30px -8px rgba(155, 124, 255, 0.7),
+    inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast, 150ms) var(--ease),
+    box-shadow var(--duration-fast, 150ms) var(--ease);
+}
+body.widget:not(.panel) .widget-orb:hover {
+  transform: scale(1.06);
+  box-shadow:
+    0 14px 40px -8px rgba(155, 124, 255, 0.9),
+    inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+body.widget:not(.panel) .widget-orb:active {
+  transform: scale(0.97);
+}
+
+.widget-orb__core {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+}
+.widget-orb__core svg {
+  width: 34px;
+  height: 34px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.widget-orb__pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.45;
+  animation: orbPulse 2.6s var(--ease) infinite;
+}
+@keyframes orbPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  70% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* PANEL (expanded): show the full app inside a rounded floating card */
+body.widget.panel {
+  height: 100vh;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  overflow-y: auto;
+  background:
+    radial-gradient(120% 80% at 50% -10%, #1d1730 0%, transparent 55%),
+    var(--bg);
+}
+body.widget.panel .widget-orb {
+  display: none;
+}

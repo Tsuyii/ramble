@@ -79,10 +79,43 @@ const projectColor = (id) => (id === "inbox" || !id ? "var(--text-faint)" : stat
 
 els.orb.addEventListener("click", () => (recording ? stopRecording() : startRecording()));
 
-// Tauri shell hotkey (show + start recording). Harmless in a plain browser.
+// ---------- widget orb mode (Tauri only) ----------
+const IS_WIDGET = Boolean(window.__TAURI__);
+
+// Switch between the collapsed orb and the expanded panel; the shell resizes the window.
+function setMode(mode) {
+  const panel = mode === "panel";
+  document.body.classList.toggle("panel", panel);
+  window.dispatchEvent(new CustomEvent("ramble:want-expand", { detail: panel }));
+}
+
+const widgetOrb = document.getElementById("widgetOrb");
+if (widgetOrb) {
+  widgetOrb.addEventListener("click", () => {
+    setMode("panel");
+    if (!recording) startRecording();
+  });
+}
+
+// Hotkey (show + start recording) → expand, then record.
 window.addEventListener("ramble:start-recording", () => {
+  setMode("panel");
   if (!recording) startRecording();
 });
+
+// Blur → collapse back to the orb (unless mid-ramble).
+window.addEventListener("ramble:collapse", () => {
+  if (!recording) setMode("orb");
+});
+
+// Esc collapses the panel (when Settings isn't open).
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && IS_WIDGET && document.body.classList.contains("panel") && settingsModal.hidden && !recording) {
+    setMode("orb");
+  }
+});
+
+if (IS_WIDGET) setMode("orb");
 
 async function startRecording() {
   try {

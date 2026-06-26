@@ -8,14 +8,28 @@
   const { invoke } = T.core;
   const { listen } = T.event;
 
-  // Tell the Rust shell when recording starts/stops so it won't auto-hide on blur.
+  // Mark widget mode immediately (before app.js) so it renders as the orb, not the
+  // full app, avoiding a flash of the panel on launch.
+  document.body.classList.add("widget");
+
+  // Tell the Rust shell when recording starts/stops so blur won't collapse mid-ramble.
   window.addEventListener("ramble:recording", (e) => {
     invoke("set_recording", { recording: Boolean(e.detail) }).catch(() => {});
+  });
+
+  // Frontend asks the shell to resize between orb and panel.
+  window.addEventListener("ramble:want-expand", (e) => {
+    invoke("set_expanded", { expanded: Boolean(e.detail) }).catch(() => {});
   });
 
   // Global hotkey (Ctrl+Shift+Space) → show + start recording.
   listen("ramble:hotkey", () => {
     window.dispatchEvent(new CustomEvent("ramble:start-recording"));
+  });
+
+  // Blur → collapse the panel back to the orb.
+  listen("ramble:collapse", () => {
+    window.dispatchEvent(new CustomEvent("ramble:collapse"));
   });
 
   // Tray "Settings" item.
