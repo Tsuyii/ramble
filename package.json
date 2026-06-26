@@ -6,7 +6,8 @@
   "description": "Say it. I'll sort it. — a voice brain-dump that turns rambling speech into clean, scheduled tasks.",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "tauri": "tauri"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
