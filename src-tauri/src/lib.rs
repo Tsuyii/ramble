@@ -1,4 +1,6 @@
+use std::net::{TcpListener, TcpStream};
 use std::sync::Mutex;
+use std::time::Duration;
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -6,11 +8,17 @@ use tauri::{
     AppHandle, Emitter, Manager, PhysicalPosition, WebviewWindow, WindowEvent,
 };
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_shell::process::CommandChild;
+use tauri_plugin_shell::ShellExt;
 
 /// Whether the frontend is mid-recording. While true, blur must NOT auto-hide the orb,
 /// otherwise clicking the mic / talking would dismiss the widget mid-ramble.
 #[derive(Default)]
 struct RecordingState(Mutex<bool>);
+
+/// Holds the spawned Node sidecar so it can be killed on exit (no orphaned servers).
+#[derive(Default)]
+struct Sidecar(Mutex<Option<CommandChild>>);
 
 /// Frontend calls this when recording starts/stops so the shell knows whether it's safe
 /// to auto-hide on blur. See ADR-0002 (same frontend in browser + webview).
@@ -61,11 +69,89 @@ fn toggle(app: &AppHandle) {
     }
 }
 
+/// Pick a free TCP port (bind to :0, read the assigned port, release it).
+fn free_port() -> u16 {
+    TcpListener::bind("127.0.0.1:0")
+        .ok()
+        .and_then(|l| l.local_addr().ok())
+        .map(|a| a.port())
+        .unwrap_or(5179)
+}
+
+/// Spawn the bundled Node sidecar (the unchanged Express server) and, once it's
+/// listening, point the webview at it. Production only — in dev the webview uses
+/// `devUrl` and `beforeDevCommand` runs the server. See ADR-0002.
+fn start_backend(app: &AppHandle) {
+    let port = free_port();
+
+    let data_dir = app
+        .path()
+        .app_local_data_dir()
+        .unwrap_or_else(|_| std::env::temp_dir());
+    let _ = std::fs::create_dir_all(&data_dir);
+
+    let public_dir = app
+        .path()
+        .resource_dir()
+        .map(|r| r.join("public"))
+        .unwrap_or_else(|_| std::path::PathBuf::from("public"));
+
+    let sidecar = match app.shell().sidecar("ramble-server") {
+        Ok(cmd) => cmd
+            .env("PORT", port.to_string())
+            .env("RAMBLE_DATA_DIR", data_dir.to_string_lossy().to_string())
+            .env("RAMBLE_PUBLIC_DIR", public_dir.to_string_lossy().to_string()),
+        Err(e) => {
+            log::error!("failed to resolve sidecar: {e}");
+            return;
+        }
+    };
+
+    match sidecar.spawn() {
+        Ok((mut rx, child)) => {
+            if let Some(state) = app.try_state::<Sidecar>() {
+                *state.0.lock().unwrap() = Some(child);
+            }
+            // Drain sidecar output so its stdout/stderr buffer never blocks it.
+            tauri::async_runtime::spawn(async move {
+                use tauri_plugin_shell::process::CommandEvent;
+                while let Some(event) = rx.recv().await {
+                    if let CommandEvent::Stderr(line) | CommandEvent::Stdout(line) = event {
+                        log::info!("[server] {}", String::from_utf8_lossy(&line).trim_end());
+                    }
+                }
+            });
+        }
+        Err(e) => {
+            log::error!("failed to spawn sidecar: {e}");
+            return;
+        }
+    }
+
+    // Wait for the server to accept connections, then navigate the webview to it.
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        for _ in 0..120 {
+            if TcpStream::connect(("127.0.0.1", port)).is_ok() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(150));
+        }
+        if let Some(window) = handle.get_webview_window("main") {
+            if let Ok(url) = format!("http://127.0.0.1:{port}").parse() {
+                let _ = window.navigate(url);
+            }
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(RecordingState::default())
+        .manage(Sidecar::default())
         .invoke_handler(tauri::generate_handler![set_recording])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -120,6 +206,11 @@ pub fn run() {
                     }
                 })?;
 
+            // ---- Backend: in production, spawn the bundled Node sidecar ----
+            if !cfg!(debug_assertions) {
+                start_backend(app.handle());
+            }
+
             // ---- Initial placement ----
             if let Some(window) = app.get_webview_window("main") {
                 position_bottom_right(&window);
@@ -142,6 +233,16 @@ pub fn run() {
                 }
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // Kill the Node sidecar when the app exits — no orphaned servers.
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                if let Some(state) = app.try_state::<Sidecar>() {
+                    if let Some(child) = state.0.lock().unwrap().take() {
+                        let _ = child.kill();
+                    }
+                }
+            }
+        });
 }

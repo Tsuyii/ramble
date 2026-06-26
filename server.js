@@ -32,7 +32,11 @@ const MAX_CORRECTIONS = 60;
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static(path.join(__dirname, "public")));
+// Dev: ./public. Packaged widget: the Tauri shell passes RAMBLE_PUBLIC_DIR (the
+// bundled frontend in app resources), since the sidecar is a compiled binary with no
+// ./public next to it. See ADR-0002.
+const PUBLIC_DIR = process.env.RAMBLE_PUBLIC_DIR || path.join(__dirname, "public");
+app.use(express.static(PUBLIC_DIR));
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 // ---------- persistence ----------

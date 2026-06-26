@@ -12,6 +12,7 @@ data/
 dist/
 src-tauri/target/
 src-tauri/gen/schemas/
+src-tauri/binaries/
 
 # Agent / tool local state
 .sxcode/

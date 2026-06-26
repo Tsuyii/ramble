@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "bundle:server": "esbuild server.js --bundle --platform=node --format=cjs --outfile=dist/server.cjs"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
@@ -15,6 +16,8 @@
     "multer": "^2.0.1"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.3"
+    "@tauri-apps/cli": "^2.11.3",
+    "@yao-pkg/pkg": "^6.20.0",
+    "esbuild": "^0.28.1"
   }
 }

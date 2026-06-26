@@ -1,9 +1,9 @@
 name: build
 
 # Builds the Tauri desktop installers in the cloud (no Smart App Control there),
-# so they can be produced without building locally. Artifacts are downloadable
-# from each run. See ADR-0002 (Node-sidecar architecture) — backend bundling lands
-# in a follow-up; this proves the Windows + macOS packaging pipeline.
+# so they can be produced without building locally. Bundles the Node server as a
+# self-contained sidecar binary, smoke-tests it, then packages the installers.
+# Artifacts are downloadable from each run. See ADR-0002.
 
 on:
   push:
@@ -38,6 +38,40 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Build Node server sidecar
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run bundle:server
+          TRIPLE=$(rustc -vV | sed -n 's/host: //p')
+          mkdir -p src-tauri/binaries
+          EXT=""
+          case "$TRIPLE" in
+            x86_64-pc-windows-msvc) PKG_TARGET="node20-win-x64"; EXT=".exe" ;;
+            aarch64-apple-darwin)   PKG_TARGET="node20-macos-arm64" ;;
+            x86_64-apple-darwin)    PKG_TARGET="node20-macos-x64" ;;
+            *) echo "unsupported triple: $TRIPLE"; exit 1 ;;
+          esac
+          npx pkg dist/server.cjs --targets "$PKG_TARGET" --output "src-tauri/binaries/ramble-server-$TRIPLE$EXT"
+          ls -la src-tauri/binaries
+
+      - name: Smoke-test sidecar (runs the real binary — no SAC here)
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRIPLE=$(rustc -vV | sed -n 's/host: //p')
+          EXT=""; [ "$TRIPLE" = "x86_64-pc-windows-msvc" ] && EXT=".exe"
+          BIN="src-tauri/binaries/ramble-server-$TRIPLE$EXT"
+          RAMBLE_PUBLIC_DIR=public PORT=5199 "$BIN" &
+          PID=$!
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:5199/api/health >/dev/null 2>&1; then OK=1; break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:5199/api/health && echo " — sidecar OK"
+          kill "$PID" 2>/dev/null || true
+          [ "${OK:-0}" = "1" ] || { echo "sidecar smoke test failed"; exit 1; }
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
