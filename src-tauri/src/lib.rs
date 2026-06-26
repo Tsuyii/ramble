@@ -79,6 +79,13 @@ fn free_port() -> u16 {
         .unwrap_or(5179)
 }
 
+/// Strip Windows' `\\?\` verbatim prefix. Tauri's resource_dir() returns one, and Node's
+/// main-module resolver chokes on it (EISDIR lstat 'C:'). Express dislikes it too.
+fn plain_path(p: &Path) -> String {
+    let s = p.to_string_lossy().to_string();
+    s.strip_prefix(r"\\?\").map(str::to_string).unwrap_or(s)
+}
+
 /// Find a file by name anywhere under `root` (bounded depth). Used to locate the bundled
 /// `server.cjs` / `index.html` regardless of exactly where Tauri placed the resources.
 fn find_file(root: &Path, name: &str, max_depth: usize) -> Option<PathBuf> {
@@ -139,10 +146,10 @@ fn start_backend(app: &AppHandle) {
 
     let sidecar = match app.shell().sidecar("ramble-server") {
         Ok(cmd) => cmd
-            .args([server_js.to_string_lossy().to_string()])
+            .args([plain_path(&server_js)])
             .env("PORT", port.to_string())
-            .env("RAMBLE_DATA_DIR", data_dir.to_string_lossy().to_string())
-            .env("RAMBLE_PUBLIC_DIR", public_dir.to_string_lossy().to_string()),
+            .env("RAMBLE_DATA_DIR", plain_path(&data_dir))
+            .env("RAMBLE_PUBLIC_DIR", plain_path(&public_dir)),
         Err(e) => {
             log::error!("failed to resolve sidecar: {e}");
             return;
