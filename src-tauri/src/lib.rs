@@ -1,4 +1,5 @@
 use std::net::{TcpListener, TcpStream};
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -78,6 +79,28 @@ fn free_port() -> u16 {
         .unwrap_or(5179)
 }
 
+/// Find a file by name anywhere under `root` (bounded depth). Used to locate the bundled
+/// `server.cjs` / `index.html` regardless of exactly where Tauri placed the resources.
+fn find_file(root: &Path, name: &str, max_depth: usize) -> Option<PathBuf> {
+    let mut stack = vec![(root.to_path_buf(), 0usize)];
+    while let Some((dir, depth)) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if depth < max_depth {
+                    stack.push((path, depth + 1));
+                }
+            } else if path.file_name().and_then(|n| n.to_str()) == Some(name) {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
 /// Spawn the bundled Node sidecar (the unchanged Express server) and, once it's
 /// listening, point the webview at it. Production only — in dev the webview uses
 /// `devUrl` and `beforeDevCommand` runs the server. See ADR-0002.
@@ -94,9 +117,25 @@ fn start_backend(app: &AppHandle) {
         .path()
         .resource_dir()
         .unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let public_dir = resource_dir.join("public");
-    // The sidecar binary is Node itself; the bundled server runs as its first argument.
-    let server_js = resource_dir.join("server.cjs");
+    log::info!("resource_dir = {}", resource_dir.display());
+    if let Ok(entries) = std::fs::read_dir(&resource_dir) {
+        for e in entries.flatten() {
+            log::info!("  resource entry: {}", e.path().display());
+        }
+    }
+
+    // Tauri's exact resource layout for `../` mappings is fiddly — locate the bundled
+    // files by searching, so it works wherever they actually landed.
+    let server_js = find_file(&resource_dir, "server.cjs", 5)
+        .unwrap_or_else(|| resource_dir.join("server.cjs"));
+    let public_dir = find_file(&resource_dir, "index.html", 5)
+        .and_then(|p| p.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| resource_dir.join("public"));
+
+    log::info!("server_js = {} (exists: {})", server_js.display(), server_js.exists());
+    log::info!("public_dir = {} (exists: {})", public_dir.display(), public_dir.exists());
+    log::info!("data_dir = {}", data_dir.display());
+    log::info!("sidecar port = {port}");
 
     let sidecar = match app.shell().sidecar("ramble-server") {
         Ok(cmd) => cmd
@@ -134,12 +173,15 @@ fn start_backend(app: &AppHandle) {
     // Wait for the server to accept connections, then navigate the webview to it.
     let handle = app.clone();
     std::thread::spawn(move || {
+        let mut connected = false;
         for _ in 0..120 {
             if TcpStream::connect(("127.0.0.1", port)).is_ok() {
+                connected = true;
                 break;
             }
             std::thread::sleep(Duration::from_millis(150));
         }
+        log::info!("backend reachable on 127.0.0.1:{port}: {connected}");
         if let Some(window) = handle.get_webview_window("main") {
             if let Ok(url) = format!("http://127.0.0.1:{port}").parse() {
                 let _ = window.navigate(url);
@@ -157,13 +199,18 @@ pub fn run() {
         .manage(Sidecar::default())
         .invoke_handler(tauri::generate_handler![set_recording])
         .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+            // Log in release too, to a file in the app log dir, so we can diagnose the
+            // packaged build (the dev machine can't run it — Smart App Control).
+            app.handle().plugin(
+                tauri_plugin_log::Builder::default()
+                    .level(log::LevelFilter::Info)
+                    .target(tauri_plugin_log::Target::new(
+                        tauri_plugin_log::TargetKind::LogDir {
+                            file_name: Some("ramble".into()),
+                        },
+                    ))
+                    .build(),
+            )?;
 
             // ---- Tray icon + menu ----
             let show_i = MenuItem::with_id(app, "show", "Show Ramble", true, None::<&str>)?;
