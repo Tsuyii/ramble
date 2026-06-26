@@ -44,7 +44,8 @@
     "targets": ["nsis", "dmg"],
     "externalBin": ["binaries/ramble-server"],
     "resources": {
-      "../public": "public"
+      "../public": "public",
+      "../dist/server.cjs": "server.cjs"
     },
     "icon": [
       "icons/32x32.png",

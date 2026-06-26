@@ -31,8 +31,9 @@ and server code.
 - **Same code, two shells.** Anything added to `public/` must keep working in a plain browser
   AND in the Tauri webview. Feature-detect platform/browser capabilities (e.g. Web Speech) at
   runtime — never assume them (ADR-0003).
-- **Keys:** `.env` locally; in the packaged app, a Settings page stores them in the OS
-  keychain. Never hardcode or commit keys; never log them.
+- **Keys:** `.env` locally; in the packaged app, a Settings page writes them to
+  `config.json` in the OS app-data dir (read by the server via `currentKeys()`, fresh per
+  request). Never hardcode or commit keys; never log them; never echo them back to the UI.
 - **Data path:** `server.js` must write JSON to a configurable dir (OS app-data when packaged,
   `./data` in dev) — the install dir is read-only when packaged.
 - **Style:** small files (<800 lines), early returns, immutable updates, explicit error

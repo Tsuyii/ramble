@@ -61,8 +61,11 @@ The point of this build is (a) it's **ours / local**, (b) it runs on **DeepSeek*
 5. **Dismiss:** **auto-hide on blur** (like Spotlight); stays pinned while recording.
 6. **Captions:** platform-adaptive — live on Windows, pulse-only + transcript-after-stop on
    macOS, graceful fallback everywhere. See [[ADR-0003-platform-adaptive-captions]].
-7. **Keys:** a **Settings page** to enter DeepSeek/Groq keys, stored in the **OS keychain**;
-   the owner's build ships pre-filled so first run just works.
+7. **Keys:** a **Settings page** (gear icon, or tray → Settings) to enter DeepSeek/Groq
+   keys. **v1 stores them in `config.json` in the OS app-data dir**, owned by the local
+   server, never bundled in JS, never echoed back to the UI; keys are read fresh per
+   request so changes apply with no restart. (Deviation from the original **OS keychain**
+   plan — accepted for v1 simplicity; keychain is a future hardening.)
 8. **Data:** sidecar writes `tasks/projects/memory.json` to the **OS app-data dir** (the
    install dir is read-only when packaged).
 

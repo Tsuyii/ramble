@@ -90,14 +90,17 @@ fn start_backend(app: &AppHandle) {
         .unwrap_or_else(|_| std::env::temp_dir());
     let _ = std::fs::create_dir_all(&data_dir);
 
-    let public_dir = app
+    let resource_dir = app
         .path()
         .resource_dir()
-        .map(|r| r.join("public"))
-        .unwrap_or_else(|_| std::path::PathBuf::from("public"));
+        .unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let public_dir = resource_dir.join("public");
+    // The sidecar binary is Node itself; the bundled server runs as its first argument.
+    let server_js = resource_dir.join("server.cjs");
 
     let sidecar = match app.shell().sidecar("ramble-server") {
         Ok(cmd) => cmd
+            .args([server_js.to_string_lossy().to_string()])
             .env("PORT", port.to_string())
             .env("RAMBLE_DATA_DIR", data_dir.to_string_lossy().to_string())
             .env("RAMBLE_PUBLIC_DIR", public_dir.to_string_lossy().to_string()),

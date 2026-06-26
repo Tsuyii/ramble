@@ -45,16 +45,14 @@ jobs:
           set -euo pipefail
           npm run bundle:server
           TRIPLE=$(rustc -vV | sed -n 's/host: //p')
+          EXT=""; [ "$TRIPLE" = "x86_64-pc-windows-msvc" ] && EXT=".exe"
           mkdir -p src-tauri/binaries
-          EXT=""
-          case "$TRIPLE" in
-            x86_64-pc-windows-msvc) PKG_TARGET="node20-win-x64"; EXT=".exe" ;;
-            aarch64-apple-darwin)   PKG_TARGET="node20-macos-arm64" ;;
-            x86_64-apple-darwin)    PKG_TARGET="node20-macos-x64" ;;
-            *) echo "unsupported triple: $TRIPLE"; exit 1 ;;
-          esac
-          npx pkg dist/server.cjs --targets "$PKG_TARGET" --output "src-tauri/binaries/ramble-server-$TRIPLE$EXT"
-          ls -la src-tauri/binaries
+          # Ship the runner's own Node as the sidecar runtime (deterministic — no
+          # downloading/compiling a base binary). The bundled server.cjs runs on it.
+          NODEBIN=$(node -e "process.stdout.write(process.execPath)")
+          cp "$NODEBIN" "src-tauri/binaries/ramble-server-$TRIPLE$EXT"
+          chmod +x "src-tauri/binaries/ramble-server-$TRIPLE$EXT" || true
+          ls -la src-tauri/binaries dist
 
       - name: Smoke-test sidecar (runs the real binary — no SAC here)
         shell: bash
@@ -63,7 +61,7 @@ jobs:
           TRIPLE=$(rustc -vV | sed -n 's/host: //p')
           EXT=""; [ "$TRIPLE" = "x86_64-pc-windows-msvc" ] && EXT=".exe"
           BIN="src-tauri/binaries/ramble-server-$TRIPLE$EXT"
-          RAMBLE_PUBLIC_DIR=public PORT=5199 "$BIN" &
+          RAMBLE_PUBLIC_DIR=public PORT=5199 "$BIN" dist/server.cjs &
           PID=$!
           for i in $(seq 1 20); do
             if curl -fsS http://127.0.0.1:5199/api/health >/dev/null 2>&1; then OK=1; break; fi

@@ -685,4 +685,66 @@ async function boot() {
   await refresh();
 }
 
+// ---------- settings (API keys) ----------
+
+const settingsModal = document.getElementById("settingsModal");
+
+function setKeyState(id, isSet) {
+  const el = document.getElementById(id);
+  el.textContent = isSet ? "set ✓" : "not set";
+  el.dataset.set = String(Boolean(isSet));
+}
+
+async function openSettings() {
+  document.getElementById("deepseekKey").value = "";
+  document.getElementById("groqKey").value = "";
+  try {
+    const cfg = await (await fetch("/api/config")).json();
+    setKeyState("dsState", cfg.deepseek);
+    setKeyState("groqState", cfg.groq);
+    document.getElementById("deepseekKey").placeholder = cfg.deepseek ? "•••••• saved — type to replace" : "sk-…";
+    document.getElementById("groqKey").placeholder = cfg.groq ? "•••••• saved — type to replace" : "gsk_…";
+  } catch {}
+  settingsModal.hidden = false;
+  setTimeout(() => document.getElementById("deepseekKey").focus(), 60);
+}
+
+function closeSettings() {
+  settingsModal.hidden = true;
+}
+
+async function saveSettings() {
+  // Only send fields the user actually typed — a blank field leaves the saved key intact.
+  const ds = document.getElementById("deepseekKey").value.trim();
+  const gq = document.getElementById("groqKey").value.trim();
+  const body = {};
+  if (ds) body.deepseekKey = ds;
+  if (gq) body.groqKey = gq;
+  if (!Object.keys(body).length) return closeSettings();
+  try {
+    const res = await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error();
+    toast("Keys saved.");
+    closeSettings();
+    boot(); // re-check health (voice availability)
+  } catch {
+    toast("Couldn't save keys.", "error");
+  }
+}
+
+document.getElementById("settingsBtn").addEventListener("click", openSettings);
+document.getElementById("settingsSave").addEventListener("click", saveSettings);
+settingsModal.addEventListener("click", (e) => {
+  if (e.target.hasAttribute("data-close")) closeSettings();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !settingsModal.hidden) closeSettings();
+});
+// Tray "Settings" item (widget) routes here via tauri-bridge.
+window.addEventListener("ramble:open-settings", openSettings);
+
 boot();

@@ -9,16 +9,34 @@ import path from "node:path";
 
 dotenv.config();
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// In the esbuild CJS bundle, import.meta.url is empty and fileURLToPath throws — fall
+// back to cwd. Harmless because the packaged sidecar gets its dirs from env (below).
+const __dirname = (() => {
+  try {
+    return path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return process.cwd();
+  }
+})();
 // Dev: ./data. Packaged widget: the Tauri shell passes RAMBLE_DATA_DIR (an OS app-data
 // path) because the install dir is read-only. See ADR-0002.
 const DATA_DIR = process.env.RAMBLE_DATA_DIR || path.join(__dirname, "data");
 const TASKS_FILE = path.join(DATA_DIR, "tasks.json");
 const PROJECTS_FILE = path.join(DATA_DIR, "projects.json");
 const MEMORY_FILE = path.join(DATA_DIR, "memory.json");
+const CONFIG_FILE = path.join(DATA_DIR, "config.json");
 
-const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY;
-const GROQ_KEY = process.env.GROQ_API_KEY;
+// Keys come from the user-entered config file (in the app-data dir), falling back to
+// env / .env for local dev. Read fresh each time so Settings changes take effect with
+// no restart. The key never lives in bundled JS — the frontend posts it to this local
+// server only (see ADR-0002, key-safety).
+async function currentKeys() {
+  const cfg = await readJson(CONFIG_FILE, {});
+  return {
+    deepseek: (cfg.deepseekKey || process.env.DEEPSEEK_API_KEY || "").trim(),
+    groq: (cfg.groqKey || process.env.GROQ_API_KEY || "").trim(),
+  };
+}
 const PORT = process.env.PORT || 5179;
 
 const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
@@ -101,10 +119,11 @@ function todayContext() {
 }
 
 async function deepseek(messages) {
-  if (!DEEPSEEK_KEY) throw new Error("DEEPSEEK_API_KEY is not set in .env");
+  const { deepseek: key } = await currentKeys();
+  if (!key) throw new Error("DeepSeek API key not set — add it in Settings.");
   const res = await fetch(DEEPSEEK_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${DEEPSEEK_KEY}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
     body: JSON.stringify({ model: DEEPSEEK_MODEL, messages, temperature: 0.2, response_format: { type: "json_object" } }),
   });
   if (!res.ok) throw new Error(`DeepSeek ${res.status}: ${(await res.text()).slice(0, 300)}`);
@@ -172,7 +191,27 @@ Return STRICT JSON: {"tasks":[{"due":null,"subtasks":[]}]} with one entry per in
 
 // ---------- routes ----------
 
-app.get("/api/health", (_req, res) => res.json({ deepseek: Boolean(DEEPSEEK_KEY), groq: Boolean(GROQ_KEY) }));
+app.get("/api/health", async (_req, res) => {
+  const k = await currentKeys();
+  res.json({ deepseek: Boolean(k.deepseek), groq: Boolean(k.groq) });
+});
+
+// Settings: report which keys are set (never echo the keys back), and save new ones.
+app.get("/api/config", async (_req, res) => {
+  const k = await currentKeys();
+  res.json({ deepseek: Boolean(k.deepseek), groq: Boolean(k.groq) });
+});
+
+app.post("/api/config", async (req, res) => {
+  const cfg = await readJson(CONFIG_FILE, {});
+  const body = req.body || {};
+  // Only overwrite a key when a non-empty string is provided; "" clears it.
+  if (typeof body.deepseekKey === "string") cfg.deepseekKey = body.deepseekKey.trim();
+  if (typeof body.groqKey === "string") cfg.groqKey = body.groqKey.trim();
+  await writeJson(CONFIG_FILE, cfg);
+  const k = await currentKeys();
+  res.json({ deepseek: Boolean(k.deepseek), groq: Boolean(k.groq) });
+});
 
 app.get("/api/state", async (_req, res) => {
   res.json({ tasks: await loadTasks(), projects: await loadProjects(), inbox: INBOX });
@@ -199,13 +238,14 @@ app.delete("/api/projects/:id", async (req, res) => {
 
 app.post("/api/transcribe", upload.single("audio"), async (req, res) => {
   try {
-    if (!GROQ_KEY) return res.status(400).json({ error: "Groq key missing. Add GROQ_API_KEY to .env." });
+    const { groq: groqKey } = await currentKeys();
+    if (!groqKey) return res.status(400).json({ error: "Groq key not set — add it in Settings (or use the type box)." });
     if (!req.file) return res.status(400).json({ error: "No audio received." });
     const form = new FormData();
     form.append("file", new Blob([req.file.buffer], { type: req.file.mimetype || "audio/webm" }), req.file.originalname || "ramble.webm");
     form.append("model", GROQ_MODEL);
     form.append("response_format", "json");
-    const groqRes = await fetch(GROQ_URL, { method: "POST", headers: { Authorization: `Bearer ${GROQ_KEY}` }, body: form });
+    const groqRes = await fetch(GROQ_URL, { method: "POST", headers: { Authorization: `Bearer ${groqKey}` }, body: form });
     if (!groqRes.ok) return res.status(502).json({ error: `Groq ${groqRes.status}: ${(await groqRes.text()).slice(0, 300)}` });
     const data = await groqRes.json();
     res.json({ transcript: (data.text || "").trim() });
@@ -365,7 +405,8 @@ app.delete("/api/tasks/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`\n  Ramble running →  http://localhost:${PORT}`);
-  console.log(`  DeepSeek: ${DEEPSEEK_KEY ? "set" : "MISSING"}   Groq: ${GROQ_KEY ? "set" : "missing (voice disabled)"}\n`);
+  const k = await currentKeys();
+  console.log(`  DeepSeek: ${k.deepseek ? "set" : "not set"}   Groq: ${k.groq ? "set" : "not set (voice disabled)"}\n`);
 });
