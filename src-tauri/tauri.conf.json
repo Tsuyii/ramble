@@ -41,7 +41,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "dmg"],
+    "targets": ["nsis"],
     "externalBin": ["binaries/ramble-server"],
     "resources": {
       "../public": "public",

@@ -12,13 +12,7 @@ on:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: windows-latest
-          - platform: macos-latest
-    runs-on: ${{ matrix.platform }}
+    runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -76,13 +70,30 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload installers
+      - name: Assemble portable app (no installer — run Ramble.exe directly)
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRIPLE=$(rustc -vV | sed -n 's/host: //p')
+          OUT="portable/Ramble"
+          mkdir -p "$OUT"
+          cp src-tauri/target/release/app.exe "$OUT/Ramble.exe"
+          cp "src-tauri/binaries/ramble-server-$TRIPLE.exe" "$OUT/ramble-server.exe"
+          cp dist/server.cjs "$OUT/server.cjs"
+          cp -r public "$OUT/public"
+          ls -R "$OUT"
+
+      - name: Upload portable app
         uses: actions/upload-artifact@v4
         with:
-          name: ramble-${{ matrix.platform }}
+          name: ramble-portable
+          path: portable/**
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramble-windows
           if-no-files-found: ignore
           path: |
             src-tauri/target/release/bundle/**/*.exe
             src-tauri/target/release/bundle/**/*.msi
-            src-tauri/target/release/bundle/**/*.dmg
-            src-tauri/target/release/bundle/**/*.app.tar.gz
