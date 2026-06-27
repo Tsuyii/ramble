@@ -125,7 +125,11 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-if (IS_WIDGET) setMode("orb");
+if (IS_WIDGET) {
+  setMode("orb");
+  // Native-app feel: no browser right-click menu, no text-drag selection of chrome.
+  document.addEventListener("contextmenu", (e) => e.preventDefault());
+}
 
 async function startRecording() {
   try {
