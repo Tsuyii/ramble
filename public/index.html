@@ -153,6 +153,7 @@
         <div class="tabs" role="tablist" aria-label="Settings sections">
           <button class="tab" id="tabAppearance" type="button" role="tab" data-tab="appearance" aria-selected="true" aria-controls="panelAppearance">Appearance</button>
           <button class="tab" id="tabKeys" type="button" role="tab" data-tab="keys" aria-selected="false" aria-controls="panelKeys">API keys</button>
+          <button class="tab" id="tabShortcuts" type="button" role="tab" data-tab="shortcuts" aria-selected="false" aria-controls="panelShortcuts">Shortcuts</button>
         </div>
 
         <section class="tabpanel" id="panelAppearance" role="tabpanel" data-panel="appearance" aria-labelledby="tabAppearance">
@@ -182,6 +183,28 @@
             <button class="btn-ghost" type="button" data-close>Close</button>
             <button class="btn-send" id="settingsSave" type="button">Save</button>
           </div>
+        </section>
+
+        <section class="tabpanel" id="panelShortcuts" role="tabpanel" data-panel="shortcuts" aria-labelledby="tabShortcuts" hidden>
+          <p class="settings__lead">Keyboard &amp; mouse shortcuts for the widget.</p>
+          <ul class="shortcuts">
+            <li class="shortcut">
+              <span class="shortcut__keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Space</kbd></span>
+              <span class="shortcut__desc">Summon Ramble &amp; start recording</span>
+            </li>
+            <li class="shortcut">
+              <span class="shortcut__keys"><kbd>Esc</kbd></span>
+              <span class="shortcut__desc">Collapse the panel back to the orb</span>
+            </li>
+            <li class="shortcut">
+              <span class="shortcut__keys"><kbd>Click</kbd> the orb</span>
+              <span class="shortcut__desc">Expand &amp; start recording</span>
+            </li>
+            <li class="shortcut">
+              <span class="shortcut__keys"><kbd>✕</kbd></span>
+              <span class="shortcut__desc">Cancel the current ramble</span>
+            </li>
+          </ul>
         </section>
       </div>
     </div>

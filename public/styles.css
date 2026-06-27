@@ -1920,3 +1920,51 @@ body.widget.panel {
 body.widget.panel .widget-orb {
   display: none;
 }
+
+/* ===== Settings → Shortcuts tab ===== */
+
+.shortcuts {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 4px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.shortcut:last-child {
+  border-bottom: none;
+}
+.shortcut__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  color: var(--text-dim);
+  font-size: 0.86rem;
+}
+.shortcut__desc {
+  color: var(--text);
+  font-size: 0.92rem;
+  text-align: right;
+}
+.shortcut kbd {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1;
+  color: var(--text);
+  background: var(--surface-hi);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  padding: 5px 7px;
+  min-width: 12px;
+  text-align: center;
+}
