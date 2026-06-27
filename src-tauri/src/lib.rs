@@ -27,6 +27,11 @@ struct Sidecar(Mutex<Option<CommandChild>>);
 #[derive(Default)]
 struct ApiPort(Mutex<u16>);
 
+/// The currently-registered global "summon" hotkey. Tracked so we can unregister it
+/// before swapping in a user-chosen combo — otherwise the handlers would stack.
+#[derive(Default)]
+struct CurrentShortcut(Mutex<Option<Shortcut>>);
+
 #[tauri::command]
 fn get_api_port(state: tauri::State<ApiPort>) -> u16 {
     state.0.lock().map(|g| *g).unwrap_or(0)
@@ -39,6 +44,57 @@ fn set_recording(state: tauri::State<RecordingState>, recording: bool) {
     if let Ok(mut guard) = state.0.lock() {
         *guard = recording;
     }
+}
+
+/// Re-register the global "summon" hotkey from a user-chosen combo. The frontend sends the
+/// modifier flags plus a W3C key code (e.g. "Space", "KeyR", "F8") and enforces the
+/// one-key-or-(one-modifier + key) rule before calling. Returns an error string the UI shows.
+#[tauri::command]
+fn set_global_shortcut(
+    app: AppHandle,
+    state: tauri::State<CurrentShortcut>,
+    ctrl: bool,
+    shift: bool,
+    alt: bool,
+    meta: bool,
+    code: String,
+) -> Result<(), String> {
+    use std::str::FromStr;
+
+    let mut mods = Modifiers::empty();
+    if ctrl {
+        mods |= Modifiers::CONTROL;
+    }
+    if shift {
+        mods |= Modifiers::SHIFT;
+    }
+    if alt {
+        mods |= Modifiers::ALT;
+    }
+    if meta {
+        mods |= Modifiers::SUPER;
+    }
+
+    let key = Code::from_str(&code).map_err(|_| format!("Unsupported key: {code}"))?;
+    let shortcut = Shortcut::new((!mods.is_empty()).then_some(mods), key);
+
+    let gs = app.global_shortcut();
+    // Drop the previously-registered hotkey first so handlers don't stack.
+    if let Ok(mut guard) = state.0.lock() {
+        if let Some(prev) = guard.take() {
+            let _ = gs.unregister(prev);
+        }
+    }
+    gs.on_shortcut(shortcut, |app, _shortcut, event| {
+        if event.state() == ShortcutState::Pressed {
+            summon(app);
+        }
+    })
+    .map_err(|e| e.to_string())?;
+    if let Ok(mut guard) = state.0.lock() {
+        *guard = Some(shortcut);
+    }
+    Ok(())
 }
 
 /// Show a native OS notification. Called by the frontend when a reminder fires, so the
@@ -244,10 +300,12 @@ pub fn run() {
         .manage(RecordingState::default())
         .manage(Sidecar::default())
         .manage(ApiPort::default())
+        .manage(CurrentShortcut::default())
         .invoke_handler(tauri::generate_handler![
             set_recording,
             set_expanded,
             get_api_port,
+            set_global_shortcut,
             notify
         ])
         .setup(|app| {
@@ -305,7 +363,10 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // ---- Global hotkey: Ctrl+Shift+Space -> show + record ----
+            // ---- Global hotkey: default Ctrl+Shift+Space -> show + record ----
+            // The frontend re-registers this from the user's stored choice on boot via the
+            // set_global_shortcut command; we seed CurrentShortcut so that swap can unregister
+            // this one cleanly.
             let hotkey = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Space);
             app.global_shortcut()
                 .on_shortcut(hotkey, move |app, _shortcut, event| {
@@ -313,6 +374,9 @@ pub fn run() {
                         summon(app);
                     }
                 })?;
+            if let Ok(mut guard) = app.state::<CurrentShortcut>().0.lock() {
+                *guard = Some(hotkey);
+            }
 
             // ---- Backend: in production, spawn the bundled Node sidecar ----
             if !cfg!(debug_assertions) {
