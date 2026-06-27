@@ -1211,14 +1211,18 @@ body.widget {
 }
 
 /* No visible scrollbars in the widget — still scrollable, just no browser bar. */
+html:has(body.widget),
 body.widget,
 body.widget * {
   scrollbar-width: none;
+  -ms-overflow-style: none;
 }
-body.widget ::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
+html:has(body.widget)::-webkit-scrollbar,
+body.widget::-webkit-scrollbar,
+body.widget *::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 /* ORB (collapsed): the default widget state (no .panel) */
