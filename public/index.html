@@ -64,14 +64,39 @@
         <p class="capture__lead">Say it. I'll sort it.</p>
         <p class="capture__sub">Tap and ramble about everything on your plate. I'll turn it into a clean list.</p>
 
-        <button class="orb" id="orb" type="button" aria-label="Start recording">
+        <button class="orb" id="orb" type="button" data-state="idle" aria-label="Start recording">
           <canvas class="orb__wave" id="wave" width="320" height="320" aria-hidden="true"></canvas>
           <span class="orb__core">
+            <!-- idle -->
             <svg class="orb__mic" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z" />
               <path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" />
             </svg>
+            <!-- listening (canvas wave behind; this is the tap-to-stop marker) -->
             <span class="orb__stop" aria-hidden="true"></span>
+            <!-- transcribing: reactive bars + streaming dots -->
+            <svg class="orb__glyph orb__glyph--wave" viewBox="0 0 24 24" aria-hidden="true">
+              <g class="orb__wavebars">
+                <rect x="2.5" y="9" width="2" height="6" rx="1" />
+                <rect x="6.5" y="6" width="2" height="12" rx="1" />
+                <rect x="10.5" y="3" width="2" height="18" rx="1" />
+                <rect x="14.5" y="7.5" width="2" height="9" rx="1" />
+              </g>
+              <g class="orb__wavedots">
+                <circle cx="19" cy="12" r="1" />
+                <circle cx="21.5" cy="12" r="1" />
+              </g>
+            </svg>
+            <!-- structuring: stacked layers settling -->
+            <svg class="orb__glyph orb__glyph--layers" viewBox="0 0 24 24" aria-hidden="true">
+              <path class="orb__layer orb__layer--1" d="M12 3 L21 7.5 L12 12 L3 7.5 Z" />
+              <path class="orb__layer orb__layer--2" d="M3 12 L12 16.5 L21 12" />
+              <path class="orb__layer orb__layer--3" d="M3 16.5 L12 21 L21 16.5" />
+            </svg>
+            <!-- done: checkmark draws on -->
+            <svg class="orb__glyph orb__glyph--check" viewBox="0 0 24 24" aria-hidden="true">
+              <path class="orb__checkpath" d="M5 12.5 L10 17.5 L19 7" />
+            </svg>
           </span>
         </button>
 
@@ -186,10 +211,15 @@
         </section>
 
         <section class="tabpanel" id="panelShortcuts" role="tabpanel" data-panel="shortcuts" aria-labelledby="tabShortcuts" hidden>
-          <p class="settings__lead">Keyboard &amp; mouse shortcuts for the widget.</p>
+          <p class="settings__lead">Keyboard &amp; mouse shortcuts for the widget. Set your own summon shortcut — one key, or one modifier&nbsp;+&nbsp;a key.</p>
           <ul class="shortcuts">
-            <li class="shortcut">
-              <span class="shortcut__keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Space</kbd></span>
+            <li class="shortcut shortcut--hotkey" id="hotkeyRow">
+              <span class="shortcut__keys">
+                <span class="hotkey__chips" id="hotkeyDisplay"></span>
+                <button class="hotkey__btn" id="hotkeyEdit" type="button">Change</button>
+                <button class="hotkey__btn hotkey__btn--primary" id="hotkeySave" type="button" hidden>Save</button>
+                <button class="hotkey__btn" id="hotkeyCancel" type="button" hidden>Cancel</button>
+              </span>
               <span class="shortcut__desc">Summon Ramble &amp; start recording</span>
             </li>
             <li class="shortcut">
@@ -205,6 +235,10 @@
               <span class="shortcut__desc">Cancel the current ramble</span>
             </li>
           </ul>
+          <div class="hotkey__foot">
+            <p class="hotkey__hint" id="hotkeyHint" hidden></p>
+            <button class="hotkey__reset" id="hotkeyReset" type="button" hidden>Reset to default</button>
+          </div>
         </section>
       </div>
     </div>

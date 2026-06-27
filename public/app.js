@@ -72,6 +72,19 @@ let answers = {};
 // section already convey what's happening. Kept as a no-op so call sites stay put.
 function setStatus() {}
 
+// The orb is the living centrepiece of the pipeline. One attribute drives which
+// glyph shows and which animation runs; all glyphs inherit the theme accent.
+// States: idle | listening | transcribing | structuring | done
+function setOrbState(s) {
+  if (els.orb.dataset.state === s) return;
+  els.orb.dataset.state = s;
+  // Re-trigger the momentum pulse: remove, force a reflow, re-add so the
+  // animation restarts on every change (CSS can't detect attribute changes).
+  els.orb.classList.remove("orb--pulse");
+  void els.orb.offsetWidth;
+  els.orb.classList.add("orb--pulse");
+}
+
 function toast(msg, kind = "info") {
   els.toast.textContent = msg;
   els.toast.dataset.kind = kind;
@@ -149,7 +162,7 @@ async function startRecording() {
     mediaRecorder.start();
     recording = true;
     window.dispatchEvent(new CustomEvent("ramble:recording", { detail: true }));
-    els.orb.dataset.recording = "true";
+    setOrbState("listening");
     els.orb.setAttribute("aria-label", "Stop recording");
     els.hint.textContent = "Listening… tap to stop";
     els.transcript.hidden = true;
@@ -169,7 +182,8 @@ function stopRecording() {
   if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
   recording = false;
   window.dispatchEvent(new CustomEvent("ramble:recording", { detail: false }));
-  els.orb.dataset.recording = "false";
+  // Don't reset the glyph here — transcribe() takes over with "transcribing".
+  // The cancel path resets to "idle" explicitly via cancelCapture().
   els.orb.setAttribute("aria-label", "Start recording");
   els.hint.textContent = "Tap to speak";
   stopWaveform();
@@ -322,6 +336,7 @@ function cancelCapture() {
   els.transcriptText.value = "";
   els.liveCaption.hidden = true;
   els.hint.textContent = "Tap to speak";
+  setOrbState("idle");
   if (IS_WIDGET) setMode("orb");
 }
 document.getElementById("transcriptCancel").addEventListener("click", cancelCapture);
@@ -330,6 +345,7 @@ document.getElementById("transcriptCancel").addEventListener("click", cancelCapt
 
 async function transcribe(blob) {
   setStatus("thinking", "Tidying up");
+  setOrbState("transcribing");
   els.thinking.hidden = false;
   try {
     const form = new FormData();
@@ -338,6 +354,7 @@ async function transcribe(blob) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Transcription failed");
     els.thinking.hidden = true;
+    setOrbState("idle");
     setStatus("ready", "Check it");
     if (!data.transcript) return toast("Didn't catch anything — try again.", "error");
     els.transcriptText.value = data.transcript;
@@ -345,6 +362,7 @@ async function transcribe(blob) {
     els.transcriptText.focus();
   } catch (err) {
     els.thinking.hidden = true;
+    setOrbState("idle");
     setStatus("ready", "Ready");
     toast(err.message, "error");
   }
@@ -352,6 +370,7 @@ async function transcribe(blob) {
 
 async function structure(transcript) {
   setStatus("thinking", "Sorting");
+  setOrbState("structuring");
   els.thinking.hidden = false;
   els.followups.hidden = true;
   try {
@@ -366,12 +385,20 @@ async function structure(transcript) {
     els.thinking.hidden = true;
     setStatus("ready", "Ready");
     currentDrafts = data.drafts || [];
-    if (!currentDrafts.length) return toast("No tasks found in that — try again.");
+    if (!currentDrafts.length) {
+      setOrbState("idle");
+      return toast("No tasks found in that — try again.");
+    }
     buildQueue();
-    if (queue.length) startFollowups();
-    else finalize();
+    if (queue.length) {
+      setOrbState("idle"); // user answers follow-ups; finalize() resumes the glyph
+      startFollowups();
+    } else {
+      finalize();
+    }
   } catch (err) {
     els.thinking.hidden = true;
+    setOrbState("idle");
     setStatus("ready", "Ready");
     toast(err.message, "error");
   }
@@ -461,6 +488,7 @@ els.skipFollowups.addEventListener("click", () => finalize());
 async function finalize() {
   els.followups.hidden = true;
   els.thinking.hidden = false;
+  setOrbState("structuring");
   setStatus("thinking", "Saving");
   try {
     const res = await fetch("/api/finalize", {
@@ -477,10 +505,15 @@ async function finalize() {
     state.tasks = data.tasks;
     renderProjectBar();
     renderTasks();
+    // Flash the checkmark, then settle the orb back to idle.
+    setOrbState("done");
+    clearTimeout(finalize._t);
+    finalize._t = setTimeout(() => setOrbState("idle"), 1300);
     toast(`Added ${data.added} task${data.added === 1 ? "" : "s"} ✦`);
     els.taskGroups.scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (err) {
     els.thinking.hidden = true;
+    setOrbState("idle");
     setStatus("ready", "Ready");
     toast(err.message, "error");
   }
@@ -847,7 +880,7 @@ async function checkReminders() {
           // Don't fire for moments that passed before the task existed, or long ago —
           // just record them so the widget doesn't dump a backlog on launch.
           if (now - at > STALE_MS || (createdMs && at < createdMs)) continue;
-          const { reason, overdue } = dueAlertCopy(t, lead.days);
+          const { reason, overdue } = dueAlertCopy(t);
           fireNotice(t, reason, overdue);
           firedAny = true;
         }
@@ -860,13 +893,15 @@ async function checkReminders() {
   if (firedAny) renderTasks(); // refresh the armed-bell / reminder-tag state
 }
 
-function dueAlertCopy(t, days) {
-  if (days === 0) {
-    const overdue = startOfDay(new Date(t.due + "T00:00:00")) < startOfDay(new Date());
-    return overdue ? { reason: "Overdue", overdue: true } : { reason: "Due today", overdue: false };
-  }
-  if (days === 1) return { reason: "Due tomorrow", overdue: false };
-  return { reason: `Due in ${days} days`, overdue: false };
+// Phrase a due-alert from the ACTUAL distance to due at fire time, not the lead offset —
+// so an alert that fires late (app was closed at the intended 9am) still reads correctly
+// ("Due today", not a stale "Due tomorrow").
+function dueAlertCopy(t) {
+  const diffDays = Math.round((startOfDay(new Date(t.due + "T00:00:00")) - startOfDay(new Date())) / 86400000);
+  if (diffDays < 0) return { reason: "Overdue", overdue: true };
+  if (diffDays === 0) return { reason: "Due today", overdue: false };
+  if (diffDays === 1) return { reason: "Due tomorrow", overdue: false };
+  return { reason: `Due in ${diffDays} days`, overdue: false };
 }
 
 // Persist a "fired" marker and mirror it locally so we don't re-fire this session.
@@ -1311,5 +1346,163 @@ document.addEventListener("keydown", (e) => {
 });
 // Tray "Settings" item (widget) routes here via tauri-bridge.
 window.addEventListener("ramble:open-settings", openSettings);
+
+// ---------- custom summon hotkey ----------
+
+const HOTKEY_KEY = "ramble.hotkey";
+const DEFAULT_HOTKEY = { ctrl: true, shift: true, alt: false, meta: false, code: "Space" };
+// e.code values for the bare modifier keys — we wait for a "real" key before finishing.
+const MODIFIER_CODES = new Set([
+  "ControlLeft", "ControlRight", "ShiftLeft", "ShiftRight",
+  "AltLeft", "AltRight", "MetaLeft", "MetaRight",
+]);
+
+function loadHotkey() {
+  try {
+    const hk = JSON.parse(localStorage.getItem(HOTKEY_KEY) || "null");
+    if (hk && typeof hk.code === "string") {
+      return { ctrl: !!hk.ctrl, shift: !!hk.shift, alt: !!hk.alt, meta: !!hk.meta, code: hk.code };
+    }
+  } catch {}
+  return { ...DEFAULT_HOTKEY };
+}
+
+const hotkeysEqual = (a, b) =>
+  a.ctrl === b.ctrl && a.shift === b.shift && a.alt === b.alt && a.meta === b.meta && a.code === b.code;
+
+// Human label for a single key code: "KeyR" → "R", "ArrowUp" → "↑", "F8" → "F8".
+function keyLabel(code) {
+  if (code === "Space") return "Space";
+  let m;
+  if ((m = /^Key([A-Z])$/.exec(code))) return m[1];
+  if ((m = /^Digit(\d)$/.exec(code))) return m[1];
+  if (/^F\d{1,2}$/.test(code)) return code;
+  const named = {
+    ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→",
+    Enter: "Enter", NumpadEnter: "Enter", Tab: "Tab", Backspace: "⌫",
+  };
+  return named[code] || code;
+}
+
+// <kbd> chips for a {ctrl,shift,alt,meta,code} combo.
+function hotkeyChips(hk) {
+  const parts = [];
+  if (hk.ctrl) parts.push("Ctrl");
+  if (hk.shift) parts.push("Shift");
+  if (hk.alt) parts.push("Alt");
+  if (hk.meta) parts.push("Win");
+  parts.push(keyLabel(hk.code));
+  return parts.map((p) => `<kbd>${escapeHtml(p)}</kbd>`).join("");
+}
+
+// One modifier max (the 1-or-2-button rule). A lone key must be a function key so it can't
+// hijack ordinary typing system-wide. Returns an error string, or null when valid.
+function validateHotkey(hk) {
+  if (!hk.code || MODIFIER_CODES.has(hk.code)) return "Press a key to finish.";
+  const mods = [hk.ctrl, hk.shift, hk.alt, hk.meta].filter(Boolean).length;
+  if (mods > 1) return "Use one key, or one modifier + a key.";
+  if (mods === 0 && !/^F\d{1,2}$/.test(hk.code)) {
+    return "A single-key shortcut must be a function key (e.g. F8). Otherwise add Ctrl, Alt or Shift.";
+  }
+  return null;
+}
+
+async function applyHotkey(hk) {
+  if (!IS_WIDGET) return true;
+  try {
+    await window.__TAURI__.core.invoke("set_global_shortcut", {
+      ctrl: hk.ctrl, shift: hk.shift, alt: hk.alt, meta: hk.meta, code: hk.code,
+    });
+    return true;
+  } catch (e) {
+    toast(typeof e === "string" ? e : "Couldn't set that shortcut.", "error");
+    return false;
+  }
+}
+
+let hotkeyCurrent = loadHotkey();
+let hotkeyPending = null;
+let hotkeyCapturing = false;
+
+const hkRow = document.getElementById("hotkeyRow");
+const hkDisplay = document.getElementById("hotkeyDisplay");
+const hkEdit = document.getElementById("hotkeyEdit");
+const hkSave = document.getElementById("hotkeySave");
+const hkCancel = document.getElementById("hotkeyCancel");
+const hkHint = document.getElementById("hotkeyHint");
+const hkReset = document.getElementById("hotkeyReset");
+
+function renderHotkey() {
+  if (!hkDisplay) return;
+  if (hotkeyCapturing) {
+    hkDisplay.innerHTML = hotkeyPending
+      ? hotkeyChips(hotkeyPending)
+      : `<span class="hotkey__prompt">Press a shortcut…</span>`;
+  } else {
+    hkDisplay.innerHTML = hotkeyChips(hotkeyCurrent);
+    if (hkReset) hkReset.hidden = hotkeysEqual(hotkeyCurrent, DEFAULT_HOTKEY);
+  }
+}
+
+function setCapturing(on) {
+  hotkeyCapturing = on;
+  hotkeyPending = null;
+  if (hkRow) hkRow.classList.toggle("is-capturing", on);
+  if (hkEdit) hkEdit.hidden = on;
+  if (hkSave) { hkSave.hidden = !on; hkSave.disabled = true; }
+  if (hkCancel) hkCancel.hidden = !on;
+  if (hkHint) hkHint.hidden = true;
+  if (hkReset) hkReset.hidden = on || hotkeysEqual(hotkeyCurrent, DEFAULT_HOTKEY);
+  renderHotkey();
+}
+
+function onHotkeyKeydown(e) {
+  if (!hotkeyCapturing) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.code === "Escape") return setCapturing(false);
+  // Hold off until a non-modifier key lands.
+  if (MODIFIER_CODES.has(e.code)) {
+    hotkeyPending = null;
+    if (hkSave) hkSave.disabled = true;
+    if (hkDisplay) hkDisplay.innerHTML = `<span class="hotkey__prompt">Press a shortcut…</span>`;
+    return;
+  }
+  const hk = { ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey, meta: e.metaKey, code: e.code };
+  const err = validateHotkey(hk);
+  hotkeyPending = hk;
+  if (hkDisplay) hkDisplay.innerHTML = hotkeyChips(hk);
+  if (hkHint) { hkHint.hidden = !err; hkHint.textContent = err || ""; }
+  if (hkSave) hkSave.disabled = !!err;
+}
+
+if (hkEdit) hkEdit.addEventListener("click", () => setCapturing(true));
+if (hkCancel) hkCancel.addEventListener("click", () => setCapturing(false));
+if (hkSave) {
+  hkSave.addEventListener("click", async () => {
+    if (!hotkeyPending || validateHotkey(hotkeyPending)) return;
+    const hk = hotkeyPending;
+    if (!(await applyHotkey(hk))) return;
+    hotkeyCurrent = hk;
+    try { localStorage.setItem(HOTKEY_KEY, JSON.stringify(hk)); } catch {}
+    setCapturing(false);
+    toast("Shortcut updated.");
+  });
+}
+if (hkReset) {
+  hkReset.addEventListener("click", async () => {
+    if (!(await applyHotkey(DEFAULT_HOTKEY))) return;
+    hotkeyCurrent = { ...DEFAULT_HOTKEY };
+    try { localStorage.setItem(HOTKEY_KEY, JSON.stringify(hotkeyCurrent)); } catch {}
+    renderHotkey();
+    toast("Shortcut reset to Ctrl + Shift + Space.");
+  });
+}
+// Capture phase so the combo is grabbed before the Esc-to-close / collapse handlers.
+document.addEventListener("keydown", onHotkeyKeydown, true);
+
+renderHotkey();
+// Sync the shell with the stored choice on startup (covers a custom combo from a past run).
+applyHotkey(hotkeyCurrent);
 
 boot();
