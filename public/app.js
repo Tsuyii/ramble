@@ -724,17 +724,29 @@ async function refresh() {
 // In the widget, ask the shell which port the sidecar is on, then wait for it to boot.
 async function resolveApi() {
   if (!IS_WIDGET) return;
-  try {
-    const port = await window.__TAURI__.core.invoke("get_api_port");
-    if (port) API_BASE = `http://127.0.0.1:${port}`;
-  } catch {}
+  // The port is set in Rust during startup; retry until it's known (avoids a boot race
+  // where /api/* would otherwise resolve to the tauri:// page and return HTML).
+  for (let i = 0; i < 60; i++) {
+    try {
+      const port = await window.__TAURI__.core.invoke("get_api_port");
+      if (port) {
+        API_BASE = `http://127.0.0.1:${port}`;
+        return;
+      }
+    } catch {}
+    await new Promise((r) => setTimeout(r, 150));
+  }
 }
 
 async function waitForBackend() {
   for (let i = 0; i < 80; i++) {
     try {
       const r = await fetch("/api/health");
-      if (r.ok) return true;
+      if (r.ok) {
+        // The tauri:// fallback returns index.html with 200 — make sure it's real JSON.
+        const j = await r.json();
+        if (j && "deepseek" in j) return true;
+      }
     } catch {}
     await new Promise((r) => setTimeout(r, 250));
   }
