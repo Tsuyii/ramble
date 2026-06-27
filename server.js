@@ -361,6 +361,9 @@ app.post("/api/finalize", async (req, res) => {
         typeof s === "string" ? { text: s, done: false } : { text: s.text, done: Boolean(s.done) }
       ),
       done: false,
+      remindAt: null,
+      remindFiredAt: null,
+      dueAlertsFired: [],
       createdAt: now,
       aiPriority: t.priority || null,
       aiProjectId: t.projectId || "inbox",
@@ -382,6 +385,18 @@ app.patch("/api/tasks/:id", async (req, res) => {
   if (typeof b.done === "boolean") task.done = b.done;
   if (typeof b.title === "string" && b.title.trim()) task.title = b.title.trim();
   if ("due" in b) task.due = b.due || null;
+
+  // Reminders. Setting/changing remindAt re-arms it (clears the fired marker) so the
+  // poller will fire the new time; the client also PATCHes remindFiredAt on its own
+  // (without remindAt) to mark a manual reminder as delivered.
+  if ("remindAt" in b) {
+    task.remindAt = b.remindAt || null;
+    task.remindFiredAt = null;
+  }
+  if ("remindFiredAt" in b) task.remindFiredAt = b.remindFiredAt || null;
+  // Which due-date lead alerts (e.g. "3","1","0") have already fired — persisted so
+  // they never double-fire across restarts.
+  if (Array.isArray(b.dueAlertsFired)) task.dueAlertsFired = b.dueAlertsFired.map(String);
 
   const memory = await loadMemory();
   const logCorrection = (field, to) => {

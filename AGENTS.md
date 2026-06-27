@@ -15,6 +15,8 @@ and server code.
 - `ADR-0001-projects-and-learning.md` — projects model + prompt-side "learning".
 - `ADR-0002-tauri-node-sidecar.md` — Tauri spawns `server.js` as a bundled Node sidecar.
 - `ADR-0003-platform-adaptive-captions.md` — live captions Windows-only, graceful fallback.
+- `ADR-0004-reminders-and-notifications.md` — due-alerts + manual reminders; client poller,
+  in-app card + OS notification (Tauri plugin).
 
 ## Architecture (current)
 - `server.js` — Node/Express. Holds the keys; proxies Groq Whisper (transcribe) and DeepSeek

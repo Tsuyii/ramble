@@ -4,10 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Ramble — say it, I'll sort it</title>
+    <script>
+      // Apply the saved theme before first paint to avoid a flash. Default: Paper & Ink.
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem("ramble-theme") || "paper";
+      } catch (e) {
+        document.documentElement.dataset.theme = "paper";
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Spectral:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/styles.css" />
@@ -41,10 +49,6 @@
         <span class="wordmark__name">Ramble</span>
       </div>
       <div class="topbar__right">
-        <div class="status" id="status" data-state="idle">
-          <span class="status__dot"></span>
-          <span class="status__text">Ready</span>
-        </div>
         <button class="iconbtn" id="settingsBtn" type="button" aria-label="Settings" title="Settings — API keys">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
             <circle cx="12" cy="12" r="3.1" />
@@ -145,31 +149,47 @@
           <h2 class="section-title" id="settingsTitle">Settings</h2>
           <button class="iconbtn iconbtn--sm" id="settingsClose" type="button" aria-label="Close" data-close>✕</button>
         </div>
-        <p class="settings__lead">
-          Your keys stay on this machine — entered here, held by the local server, never bundled or
-          sent anywhere except DeepSeek and Groq.
-        </p>
 
-        <label class="field">
-          <span class="field__label">DeepSeek API key <em class="field__state" id="dsState"></em></span>
-          <input class="field__input" id="deepseekKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…" />
-          <span class="field__hint">Required for sorting. Get one at platform.deepseek.com.</span>
-        </label>
-
-        <label class="field">
-          <span class="field__label">Groq API key <em class="field__state" id="groqState"></em> <span class="field__opt">optional</span></span>
-          <input class="field__input" id="groqKey" type="password" autocomplete="off" spellcheck="false" placeholder="gsk_…" />
-          <span class="field__hint">Enables voice (Whisper). Without it, the type box still works. Free at console.groq.com/keys.</span>
-        </label>
-
-        <div class="settings__actions">
-          <button class="btn-ghost" type="button" data-close>Close</button>
-          <button class="btn-send" id="settingsSave" type="button">Save</button>
+        <div class="tabs" role="tablist" aria-label="Settings sections">
+          <button class="tab" id="tabAppearance" type="button" role="tab" data-tab="appearance" aria-selected="true" aria-controls="panelAppearance">Appearance</button>
+          <button class="tab" id="tabKeys" type="button" role="tab" data-tab="keys" aria-selected="false" aria-controls="panelKeys">API keys</button>
         </div>
+
+        <section class="tabpanel" id="panelAppearance" role="tabpanel" data-panel="appearance" aria-labelledby="tabAppearance">
+          <p class="settings__lead">Pick a look. It applies instantly and is remembered on this machine.</p>
+          <div class="themegrid" id="themeGrid"></div>
+        </section>
+
+        <section class="tabpanel" id="panelKeys" role="tabpanel" data-panel="keys" aria-labelledby="tabKeys" hidden>
+          <p class="settings__lead">
+            Your keys stay on this machine — entered here, held by the local server, never bundled or
+            sent anywhere except DeepSeek and Groq.
+          </p>
+
+          <label class="field">
+            <span class="field__label">DeepSeek API key <em class="field__state" id="dsState"></em></span>
+            <input class="field__input" id="deepseekKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…" />
+            <span class="field__hint">Required for sorting. Get one at platform.deepseek.com.</span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Groq API key <em class="field__state" id="groqState"></em> <span class="field__opt">optional</span></span>
+            <input class="field__input" id="groqKey" type="password" autocomplete="off" spellcheck="false" placeholder="gsk_…" />
+            <span class="field__hint">Enables voice (Whisper). Without it, the type box still works. Free at console.groq.com/keys.</span>
+          </label>
+
+          <div class="settings__actions">
+            <button class="btn-ghost" type="button" data-close>Close</button>
+            <button class="btn-send" id="settingsSave" type="button">Save</button>
+          </div>
+        </section>
       </div>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+    <!-- REMINDER NOTIFICATIONS — persistent cards, top-right. Built in app.js. -->
+    <div class="notices" id="noticeStack" role="region" aria-label="Reminders" aria-live="polite"></div>
 
     <script src="/tauri-bridge.js"></script>
     <script src="/app.js"></script>

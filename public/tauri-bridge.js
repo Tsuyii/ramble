@@ -36,4 +36,10 @@
   listen("ramble:open-settings", () => {
     window.dispatchEvent(new CustomEvent("ramble:open-settings"));
   });
+
+  // Reminder fired → show a native OS notification (works even when collapsed to the orb).
+  window.addEventListener("ramble:notify", (e) => {
+    const { title, body } = e.detail || {};
+    invoke("notify", { title: String(title || "Ramble"), body: String(body || "") }).catch(() => {});
+  });
 })();

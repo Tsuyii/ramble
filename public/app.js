@@ -17,8 +17,6 @@ const els = {
   wave: $("wave"),
   hint: $("hint"),
   liveCaption: $("liveCaption"),
-  status: $("status"),
-  statusText: $("status").querySelector(".status__text"),
   typeToggle: $("typeToggle"),
   typebox: $("typebox"),
   typeInput: $("typeInput"),
@@ -37,9 +35,17 @@ const els = {
   empty: $("empty"),
   tasksCount: $("tasksCount"),
   toast: $("toast"),
+  noticeStack: $("noticeStack"),
 };
 
 const PRIO_COLOR = { high: "var(--p-high)", medium: "var(--p-med)", low: "var(--p-low)" };
+
+// Inline SVGs — one icon language with the rest of the app (no emoji).
+const ICON = {
+  bell: `<svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.95 1.95 0 0 0 3.4 0"/></svg>`,
+  edit: `<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg>`,
+};
 
 const state = {
   projects: [],
@@ -62,10 +68,9 @@ let answers = {};
 
 // ---------- helpers ----------
 
-function setStatus(s, text) {
-  els.status.dataset.state = s;
-  els.statusText.textContent = text;
-}
+// Status pill was removed from the UI; the orb state, hint text, and "thinking"
+// section already convey what's happening. Kept as a no-op so call sites stay put.
+function setStatus() {}
 
 function toast(msg, kind = "info") {
   els.toast.textContent = msg;
@@ -206,6 +211,18 @@ function stopLiveCaptions() {
 
 // ---------- waveform ----------
 
+// Read the current theme's accent colours so the waveform matches the active look.
+function waveColors() {
+  const s = getComputedStyle(document.body);
+  const c1 = (s.getPropertyValue("--accent").trim() || "#c2410c").slice(0, 7);
+  const c2 = (s.getPropertyValue("--accent-2").trim() || "#4d7c45").slice(0, 7);
+  return { c1, c2 };
+}
+const alphaHex = (a) =>
+  Math.max(0, Math.min(255, Math.round(a * 255)))
+    .toString(16)
+    .padStart(2, "0");
+
 function startWaveform(stream) {
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   const source = audioCtx.createMediaStreamSource(stream);
@@ -217,6 +234,7 @@ function startWaveform(stream) {
   const data = new Uint8Array(analyser.frequencyBinCount);
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
+  const { c1, c2 } = waveColors();
   const draw = () => {
     rafId = requestAnimationFrame(draw);
     analyser.getByteFrequencyData(data);
@@ -234,8 +252,8 @@ function startWaveform(stream) {
       const x2 = cx + Math.cos(ang) * (baseR + len);
       const y2 = cy + Math.sin(ang) * (baseR + len);
       const grad = ctx.createLinearGradient(x1, y1, x2, y2);
-      grad.addColorStop(0, "rgba(155,124,255,0.85)");
-      grad.addColorStop(1, "rgba(95,224,208,0.9)");
+      grad.addColorStop(0, c1 + alphaHex(0.85));
+      grad.addColorStop(1, c2 + alphaHex(0.9));
       ctx.strokeStyle = grad;
       ctx.lineWidth = 3;
       ctx.lineCap = "round";
@@ -247,7 +265,7 @@ function startWaveform(stream) {
     const level = sum / bars;
     ctx.beginPath();
     ctx.arc(cx, cy, baseR - 6, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(155,124,255,${0.15 + level * 0.4})`;
+    ctx.strokeStyle = c1 + alphaHex(0.15 + level * 0.4);
     ctx.lineWidth = 2;
     ctx.stroke();
   };
@@ -616,6 +634,12 @@ function taskEl(t, overdue) {
     p.textContent = t.priority;
     meta.appendChild(p);
   }
+  if (t.remindAt && !t.remindFiredAt && !t.done) {
+    const r = document.createElement("span");
+    r.className = "tag tag--remind";
+    r.innerHTML = `${ICON.bell}<span>${escapeHtml(formatReminder(t.remindAt))}</span>`;
+    meta.appendChild(r);
+  }
   if (meta.children.length) body.appendChild(meta);
 
   if (t.subtasks && t.subtasks.length) {
@@ -632,13 +656,39 @@ function taskEl(t, overdue) {
     body.appendChild(ul);
   }
 
-  const edit = document.createElement("button");
-  edit.className = "task__edit";
-  edit.setAttribute("aria-label", "Edit task");
-  edit.innerHTML = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
-  edit.addEventListener("click", () => openEditor(t, el, overdue));
+  const actions = document.createElement("div");
+  actions.className = "task__actions";
 
-  el.append(check, body, edit);
+  const remindBtn = document.createElement("button");
+  remindBtn.className = "taskbtn taskbtn--remind";
+  remindBtn.type = "button";
+  remindBtn.title = "Remind me";
+  remindBtn.setAttribute("aria-label", "Set a reminder");
+  remindBtn.innerHTML = ICON.bell;
+  if (t.remindAt && !t.remindFiredAt) remindBtn.dataset.armed = "true";
+  remindBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openReminderPopover(t, remindBtn);
+  });
+
+  const editBtn = document.createElement("button");
+  editBtn.className = "taskbtn";
+  editBtn.type = "button";
+  editBtn.title = "Edit";
+  editBtn.setAttribute("aria-label", "Edit task");
+  editBtn.innerHTML = ICON.edit;
+  editBtn.addEventListener("click", () => openEditor(t, el, overdue));
+
+  const delBtn = document.createElement("button");
+  delBtn.className = "taskbtn taskbtn--danger";
+  delBtn.type = "button";
+  delBtn.title = "Delete";
+  delBtn.setAttribute("aria-label", "Delete task");
+  delBtn.innerHTML = ICON.trash;
+  delBtn.addEventListener("click", () => deleteTask(t, el));
+
+  actions.append(remindBtn, editBtn, delBtn);
+  el.append(check, body, actions);
   return el;
 }
 
@@ -725,6 +775,371 @@ async function deleteTask(t, el) {
   await refresh();
 }
 
+// ---------- reminders + notifications ----------
+//
+// Two kinds of reminder: (1) AUTO alerts derived from a task's due date — a heads-up
+// 3 days / 1 day before, and on the day; (2) MANUAL reminders the user sets via the
+// bell. A light client-side poller checks every REMINDER_TICK and fires anything due.
+// "Fired" markers are persisted on the task so a reminder never repeats across restarts.
+
+const REMINDER_TICK = 30000; // ms between reminder checks
+const REMIND_HOUR = 9; // auto due-alerts fire at 9am local on their day
+const DUE_LEADS = [{ label: "3", days: 3 }, { label: "1", days: 1 }, { label: "0", days: 0 }];
+const STALE_MS = 24 * 60 * 60 * 1000; // suppress (but mark) alerts whose moment passed >24h ago
+const SNOOZE_MS = { "15 min": 15 * 60000, "1 hour": 60 * 60000 };
+
+const startOfDay = (d) => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+};
+const atHour = (date, h, m = 0) => {
+  const x = new Date(date);
+  x.setHours(h, m, 0, 0);
+  return x;
+};
+
+// Human, theme-agnostic phrasing for a reminder timestamp ("Today 9:00 AM", "Jun 30 2:15 PM").
+function formatReminder(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return `Today ${time}`;
+  const tmr = new Date(now.getTime() + 86400000);
+  if (d.toDateString() === tmr.toDateString()) return `Tomorrow ${time}`;
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ${time}`;
+}
+
+// The datetime a given lead alert should fire (e.g. 3 days before due, at 9am).
+function dueAlertAt(due, days) {
+  const d = startOfDay(new Date(due + "T00:00:00"));
+  d.setDate(d.getDate() - days);
+  return atHour(d, REMIND_HOUR).getTime();
+}
+
+let _checking = false;
+async function checkReminders() {
+  if (_checking) return;
+  _checking = true;
+  let firedAny = false;
+  try {
+    const now = Date.now();
+    for (const t of state.tasks) {
+      if (t.done) continue;
+
+      // (2) Manual reminder.
+      if (t.remindAt && !t.remindFiredAt && new Date(t.remindAt).getTime() <= now) {
+        fireNotice(t, "Reminder", false);
+        await markFired(t, { remindFiredAt: new Date().toISOString() });
+        firedAny = true;
+      }
+
+      // (1) Auto due-date alerts.
+      if (t.due) {
+        const fired = new Set((t.dueAlertsFired || []).map(String));
+        const createdMs = t.createdAt ? new Date(t.createdAt).getTime() : 0;
+        const before = fired.size;
+        for (const lead of DUE_LEADS) {
+          if (fired.has(lead.label)) continue;
+          const at = dueAlertAt(t.due, lead.days);
+          if (at > now) continue; // not yet
+          fired.add(lead.label);
+          // Don't fire for moments that passed before the task existed, or long ago —
+          // just record them so the widget doesn't dump a backlog on launch.
+          if (now - at > STALE_MS || (createdMs && at < createdMs)) continue;
+          const { reason, overdue } = dueAlertCopy(t, lead.days);
+          fireNotice(t, reason, overdue);
+          firedAny = true;
+        }
+        if (fired.size !== before) await markFired(t, { dueAlertsFired: [...fired] });
+      }
+    }
+  } finally {
+    _checking = false;
+  }
+  if (firedAny) renderTasks(); // refresh the armed-bell / reminder-tag state
+}
+
+function dueAlertCopy(t, days) {
+  if (days === 0) {
+    const overdue = startOfDay(new Date(t.due + "T00:00:00")) < startOfDay(new Date());
+    return overdue ? { reason: "Overdue", overdue: true } : { reason: "Due today", overdue: false };
+  }
+  if (days === 1) return { reason: "Due tomorrow", overdue: false };
+  return { reason: `Due in ${days} days`, overdue: false };
+}
+
+// Persist a "fired" marker and mirror it locally so we don't re-fire this session.
+async function markFired(t, patch) {
+  Object.assign(t, patch);
+  try {
+    await fetch(`/api/tasks/${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  } catch {}
+}
+
+// Fire both surfaces: the in-app card (always) and an OS notification (background-safe).
+function fireNotice(t, reason, overdue) {
+  showNotice(t, reason, overdue);
+  osNotify(reason, t.title);
+}
+
+// OS-level notification. In the widget, route through the Tauri shell; in a plain
+// browser, use the Web Notifications API when the user has granted permission.
+function osNotify(title, body) {
+  if (IS_WIDGET) {
+    window.dispatchEvent(new CustomEvent("ramble:notify", { detail: { title, body } }));
+    return;
+  }
+  try {
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification(title, { body });
+    }
+  } catch {}
+}
+
+// Ask for browser notification permission once, on a deliberate action (setting a reminder).
+function requestOsPermission() {
+  if (IS_WIDGET) return;
+  try {
+    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+  } catch {}
+}
+
+// ----- in-app notification cards -----
+
+function noticeSubtitle(t) {
+  const bits = [];
+  if (t.projectId && t.projectId !== "inbox") bits.push(projectName(t.projectId));
+  if (t.due) bits.push(new Date(t.due + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }));
+  return bits.join("  ·  ");
+}
+
+function showNotice(t, reason, overdue) {
+  const key = `${t.id}:${reason}`;
+  if (els.noticeStack.querySelector(`[data-key="${CSS.escape(key)}"]`)) return; // already showing
+
+  const card = document.createElement("div");
+  card.className = "notice";
+  card.dataset.key = key;
+  card.dataset.overdue = String(Boolean(overdue));
+  card.setAttribute("role", "alert");
+
+  const sub = noticeSubtitle(t);
+  card.innerHTML = `
+    <div class="notice__head">
+      <svg class="notice__bell" viewBox="0 0 24 24" aria-hidden="true">${ICON.bell.replace(/^<svg[^>]*>|<\/svg>$/g, "")}</svg>
+      <span class="notice__reason">${escapeHtml(reason)}</span>
+      <button class="notice__dismiss" type="button" aria-label="Dismiss">✕</button>
+    </div>
+    <p class="notice__title">${escapeHtml(t.title)}</p>
+    ${sub ? `<p class="notice__sub">${escapeHtml(sub)}</p>` : ""}
+    <div class="notice__actions">
+      <span class="notice__snooze">
+        <button class="notice__btn" type="button" data-act="snooze" aria-haspopup="true">Snooze</button>
+      </span>
+      <button class="notice__btn notice__btn--primary" type="button" data-act="done">Done</button>
+    </div>`;
+
+  card.querySelector(".notice__dismiss").addEventListener("click", () => dismissNotice(card));
+  card.querySelector('[data-act="done"]').addEventListener("click", () => noticeDone(t, card));
+  const snoozeWrap = card.querySelector(".notice__snooze");
+  card.querySelector('[data-act="snooze"]').addEventListener("click", () => toggleSnoozeMenu(t, snoozeWrap, card));
+
+  els.noticeStack.appendChild(card);
+}
+
+function dismissNotice(card) {
+  card.dataset.leaving = "true";
+  setTimeout(() => card.remove(), 200);
+}
+
+function toggleSnoozeMenu(t, wrap, card) {
+  const open = wrap.querySelector(".notice__snoozemenu");
+  if (open) return open.remove();
+  const menu = document.createElement("div");
+  menu.className = "notice__snoozemenu";
+  const opts = [
+    { label: "15 min", at: () => Date.now() + SNOOZE_MS["15 min"] },
+    { label: "1 hour", at: () => Date.now() + SNOOZE_MS["1 hour"] },
+    { label: "Tomorrow 9am", at: () => atHour(new Date(Date.now() + 86400000), REMIND_HOUR).getTime() },
+  ];
+  for (const o of opts) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = o.label;
+    b.addEventListener("click", () => {
+      menu.remove();
+      snoozeTo(t, new Date(o.at()).toISOString(), card);
+    });
+    menu.appendChild(b);
+  }
+  wrap.appendChild(menu);
+}
+
+async function snoozeTo(t, iso, card) {
+  Object.assign(t, { remindAt: iso, remindFiredAt: null });
+  try {
+    await fetch(`/api/tasks/${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ remindAt: iso }),
+    });
+  } catch {}
+  dismissNotice(card);
+  renderTasks();
+  toast(`Snoozed — ${formatReminder(iso)}`);
+}
+
+async function noticeDone(t, card) {
+  t.done = true;
+  try {
+    await fetch(`/api/tasks/${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ done: true }),
+    });
+  } catch {}
+  dismissNotice(card);
+  await refresh();
+}
+
+// ----- reminder popover (the bell) -----
+
+let openPopover = null;
+
+function closeReminderPopover() {
+  if (openPopover) {
+    openPopover.remove();
+    openPopover = null;
+    document.removeEventListener("click", onPopoverOutside, true);
+    window.removeEventListener("resize", closeReminderPopover);
+  }
+}
+
+function onPopoverOutside(e) {
+  if (openPopover && !openPopover.contains(e.target)) closeReminderPopover();
+}
+
+function reminderPresets(t) {
+  const now = new Date();
+  const presets = [{ label: "In 1 hour", at: new Date(now.getTime() + 3600000) }];
+  let tonight = atHour(now, 20);
+  if (tonight <= now) tonight = atHour(new Date(now.getTime() + 86400000), 20);
+  presets.push({ label: "Tonight", at: tonight });
+  presets.push({ label: "Tomorrow 9am", at: atHour(new Date(now.getTime() + 86400000), REMIND_HOUR) });
+  if (t.due) {
+    const dayBefore = atHour(new Date(new Date(t.due + "T00:00:00").getTime() - 86400000), REMIND_HOUR);
+    if (dayBefore > now) presets.push({ label: "Day before due", at: dayBefore });
+  }
+  return presets;
+}
+
+function openReminderPopover(t, anchor) {
+  const wasForThis = openPopover && openPopover.dataset.taskId === t.id;
+  closeReminderPopover();
+  if (wasForThis) return; // clicking the bell again closes it
+
+  const pending = t.remindAt && !t.remindFiredAt;
+  const pop = document.createElement("div");
+  pop.className = "rpop";
+  pop.dataset.taskId = t.id;
+  pop.innerHTML = `
+    <p class="rpop__title">Remind me</p>
+    ${
+      pending
+        ? `<div class="rpop__current"><span>${escapeHtml(formatReminder(t.remindAt))}</span><button class="rpop__clear" type="button">Clear</button></div>`
+        : ""
+    }
+    <div class="rpop__presets"></div>
+    <div class="rpop__divider"></div>
+    <div class="rpop__custom">
+      <input type="datetime-local" aria-label="Custom reminder time" />
+      <button class="btn-send" type="button">Set</button>
+    </div>`;
+
+  const presetWrap = pop.querySelector(".rpop__presets");
+  for (const p of reminderPresets(t)) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip";
+    chip.textContent = p.label;
+    chip.addEventListener("click", () => setReminder(t, p.at.toISOString()));
+    presetWrap.appendChild(chip);
+  }
+
+  if (pending) pop.querySelector(".rpop__clear").addEventListener("click", () => clearReminder(t));
+
+  const input = pop.querySelector('input[type="datetime-local"]');
+  pop.querySelector(".rpop__custom .btn-send").addEventListener("click", () => {
+    if (!input.value) return toast("Pick a date and time first.");
+    const at = new Date(input.value);
+    if (at.getTime() <= Date.now()) return toast("Pick a time in the future.");
+    setReminder(t, at.toISOString());
+  });
+
+  document.body.appendChild(pop);
+  positionPopover(pop, anchor);
+  openPopover = pop;
+  // Defer so this very click doesn't immediately close it.
+  setTimeout(() => document.addEventListener("click", onPopoverOutside, true), 0);
+  window.addEventListener("resize", closeReminderPopover);
+}
+
+// Anchor the popover to the bell, flipping/clamping so it never leaves the viewport.
+function positionPopover(pop, anchor) {
+  const a = anchor.getBoundingClientRect();
+  const w = pop.offsetWidth;
+  const h = pop.offsetHeight;
+  let left = a.right - w;
+  let top = a.bottom + 8;
+  if (top + h > window.innerHeight - 8) top = a.top - h - 8; // flip above
+  left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+  top = Math.max(8, top);
+  pop.style.left = `${left}px`;
+  pop.style.top = `${top}px`;
+}
+
+async function setReminder(t, iso) {
+  requestOsPermission();
+  Object.assign(t, { remindAt: iso, remindFiredAt: null });
+  try {
+    await fetch(`/api/tasks/${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ remindAt: iso }),
+    });
+  } catch {}
+  closeReminderPopover();
+  renderTasks();
+  toast(`Reminder set — ${formatReminder(iso)}`);
+}
+
+async function clearReminder(t) {
+  Object.assign(t, { remindAt: null, remindFiredAt: null });
+  try {
+    await fetch(`/api/tasks/${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ remindAt: null }),
+    });
+  } catch {}
+  closeReminderPopover();
+  renderTasks();
+  toast("Reminder cleared");
+}
+
+// Esc closes the reminder popover (before any other Esc handler reacts).
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && openPopover) {
+    e.stopPropagation();
+    closeReminderPopover();
+  }
+}, true);
+
 // ---------- boot ----------
 
 async function refresh() {
@@ -778,6 +1193,60 @@ async function boot() {
     }
   } catch {}
   await refresh();
+  // Start the reminder poller once tasks are loaded.
+  checkReminders();
+  setInterval(checkReminders, REMINDER_TICK);
+}
+
+// ---------- themes ----------
+
+const THEME_KEY = "ramble-theme";
+const THEMES = [
+  { id: "paper", name: "Paper & Ink", sw: ["#f4f1ea", "#1c1a17", "#c2410c"] },
+  { id: "ember", name: "Graphite & Ember", sw: ["#181714", "#f0ece4", "#ff8a3d"] },
+  { id: "dusk", name: "Refine Dusk", sw: ["#131119", "#ece8f4", "#8b7bd8"] },
+  { id: "forest", name: "Forest", sw: ["#101610", "#e8ede2", "#cdaa5e"] },
+  { id: "cobalt", name: "Cobalt & Cream", sw: ["#f2f1ee", "#15171c", "#1d4ed8"] },
+  { id: "mono", name: "Mono Signal", sw: ["#0e0f10", "#ededee", "#22d3ee"] },
+];
+
+const currentTheme = () => document.documentElement.dataset.theme || "paper";
+
+function applyTheme(id) {
+  document.documentElement.dataset.theme = id;
+  try {
+    localStorage.setItem(THEME_KEY, id);
+  } catch {}
+  renderThemeGrid();
+}
+
+function renderThemeGrid() {
+  const grid = document.getElementById("themeGrid");
+  if (!grid) return;
+  const cur = currentTheme();
+  grid.innerHTML = "";
+  for (const t of THEMES) {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "theme-card";
+    card.setAttribute("aria-pressed", String(t.id === cur));
+    card.innerHTML = `
+      <span class="theme-card__sw">${t.sw.map((c) => `<span style="background:${c}"></span>`).join("")}</span>
+      <span class="theme-card__name">${escapeHtml(t.name)}
+        <svg class="theme-card__check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8l4 4 8-9"/></svg>
+      </span>`;
+    card.addEventListener("click", () => applyTheme(t.id));
+    grid.appendChild(card);
+  }
+}
+
+// Tabs inside the Settings modal (Appearance / API keys).
+for (const tab of document.querySelectorAll(".tab")) {
+  tab.addEventListener("click", () => {
+    const name = tab.dataset.tab;
+    document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+    document.querySelectorAll(".tabpanel").forEach((p) => (p.hidden = p.dataset.panel !== name));
+  });
 }
 
 // ---------- settings (API keys) ----------
@@ -791,6 +1260,7 @@ function setKeyState(id, isSet) {
 }
 
 async function openSettings() {
+  renderThemeGrid();
   document.getElementById("deepseekKey").value = "";
   document.getElementById("groqKey").value = "";
   try {

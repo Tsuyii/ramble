@@ -23,6 +23,10 @@ The point of this build is (a) it's **ours / local**, (b) it runs on **DeepSeek*
   memory and fed back to the AI as a learned pattern.
 - **Memory loop** — prompt-side learning: recent corrections + filing examples injected
   into the DeepSeek prompt. NOT model training. See [[ADR-0001-projects-and-learning]].
+- **Reminder** — an alert that a task needs attention. Two kinds: an **auto due-alert**
+  (3 days / 1 day before, and on the day, derived from `due`) and a **manual reminder**
+  (`remindAt`, set via the bell). Delivered both as an in-app card and an OS notification.
+  See [[ADR-0004-reminders-and-notifications]].
 - **Brain (the AI)** — DeepSeek (text LLM, OpenAI-compatible). Extraction + follow-ups +
   finalize. Does NOT do speech-to-text.
 - **Transcription** — speech→text. Live captions use the browser Web Speech API (instant);
@@ -71,8 +75,14 @@ The point of this build is (a) it's **ours / local**, (b) it runs on **DeepSeek*
 
 ## Out of scope for v1 (deliberately)
 - Phone app, multi-device sync, accounts/login.
-- Calendar integration, reminders/notifications.
+- Calendar integration.
 - The native tray widget (comes after v1 proves the flow).
 
+> **Reminders/notifications** were originally parked here; they are now **in scope** as of
+> 2026-06-27 — see [[ADR-0004-reminders-and-notifications]]. Quiet-hours / a per-user
+> preferred alert time remain out of scope (auto-alerts fire at a fixed 09:00).
+
 ## Open question still to settle
-- Exact look of the task list UI (grouping by date vs priority; light/dark).
+- Task list groups by **date** (Overdue / Today / Tomorrow / weekday / dated). Priority
+  shows as a colored left-border + tag, not as a grouping axis. Light/dark handled by the
+  6 themes. (The grouping question is effectively settled; revisit only if it stops scaling.)

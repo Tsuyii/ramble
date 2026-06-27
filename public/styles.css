@@ -1,8 +1,80 @@
 /* ===== Ramble — Dusk Studio ===== */
 
 :root {
+  --radius: 16px;
+  --radius-sm: 11px;
+  --radius-lg: 26px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+
+  --font-body: "Instrument Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+}
+
+/* ===== Themes — swap the palette by setting data-theme on <html> ===== */
+/* Tokens consumed by every component below. One accent per theme, no glow,
+   shadows tinted to the theme. Paper & Ink is the default. */
+
+:root,
+[data-theme="paper"] {
+  --bg: #f4f1ea;
+  --bg-2: #ece8de;
+  --bg-tint: #fbf8f1;
+  --surface: #ffffff;
+  --surface-hi: #fbf9f5;
+  --border: #e3ddd1;
+  --border-soft: #e3ddd199;
+
+  --text: #1c1a17;
+  --text-dim: #6b6358;
+  --text-faint: #948b7d;
+
+  --accent: #c2410c;
+  --accent-2: #4d7c45;
+  --accent-soft: rgba(194, 65, 12, 0.09);
+  --on-accent: #ffffff;
+  --check-ink: #ffffff;
+
+  --p-high: #c0392b;
+  --p-med: #b45309;
+  --p-low: #4d7c45;
+
+  --shadow: 0 18px 50px -26px rgba(60, 50, 35, 0.32);
+  --font-display: "Spectral", Georgia, serif;
+}
+
+[data-theme="ember"] {
+  --bg: #181714;
+  --bg-2: #131210;
+  --bg-tint: #221d15;
+  --surface: #211f1a;
+  --surface-hi: #2a261f;
+  --border: #36322a;
+  --border-soft: #36322a99;
+
+  --text: #f0ece4;
+  --text-dim: #b3ab9c;
+  --text-faint: #7c7567;
+
+  --accent: #ff8a3d;
+  --accent-2: #86b88a;
+  --accent-soft: rgba(255, 138, 61, 0.14);
+  --on-accent: #1a1208;
+  --check-ink: #1a1612;
+
+  --p-high: #e8696e;
+  --p-med: #e6a23c;
+  --p-low: #86b88a;
+
+  --shadow: 0 18px 50px -22px rgba(0, 0, 0, 0.78);
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+}
+
+[data-theme="dusk"] {
   --bg: #131119;
   --bg-2: #17141f;
+  --bg-tint: #1d1730;
   --surface: #1e1a28;
   --surface-hi: #271f36;
   --border: #332c44;
@@ -12,24 +84,99 @@
   --text-dim: #a79fbb;
   --text-faint: #6f6883;
 
-  --accent: #9b7cff;
-  --accent-2: #5fe0d0;
-  --accent-soft: #9b7cff26;
+  --accent: #8b7bd8;
+  --accent-2: #6ec3a0;
+  --accent-soft: rgba(139, 123, 216, 0.16);
+  --on-accent: #14101f;
+  --check-ink: #14101f;
 
-  --p-high: #ff6b7a;
-  --p-med: #ffb454;
-  --p-low: #5fd3a3;
-
-  --radius: 16px;
-  --radius-sm: 11px;
-  --radius-lg: 26px;
+  --p-high: #e0828c;
+  --p-med: #e0b15e;
+  --p-low: #6ec3a0;
 
   --shadow: 0 18px 50px -22px rgba(0, 0, 0, 0.75);
-  --ease: cubic-bezier(0.16, 1, 0.3, 1);
-
   --font-display: "Space Grotesk", system-ui, sans-serif;
-  --font-body: "Instrument Sans", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+[data-theme="forest"] {
+  --bg: #101610;
+  --bg-2: #141c12;
+  --bg-tint: #182413;
+  --surface: #1a2317;
+  --surface-hi: #222d1d;
+  --border: #2f3a2a;
+  --border-soft: #2f3a2a99;
+
+  --text: #e8ede2;
+  --text-dim: #a3ad99;
+  --text-faint: #6c7563;
+
+  --accent: #cdaa5e;
+  --accent-2: #8fbf86;
+  --accent-soft: rgba(205, 170, 94, 0.14);
+  --on-accent: #1a1408;
+  --check-ink: #14160f;
+
+  --p-high: #d98a7a;
+  --p-med: #cdaa5e;
+  --p-low: #8fbf86;
+
+  --shadow: 0 18px 50px -22px rgba(0, 0, 0, 0.8);
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+}
+
+[data-theme="cobalt"] {
+  --bg: #f2f1ee;
+  --bg-2: #e8e8e4;
+  --bg-tint: #ffffff;
+  --surface: #ffffff;
+  --surface-hi: #f6f7fb;
+  --border: #e1e2e6;
+  --border-soft: #e1e2e699;
+
+  --text: #15171c;
+  --text-dim: #585c66;
+  --text-faint: #8a8e98;
+
+  --accent: #1d4ed8;
+  --accent-2: #15803d;
+  --accent-soft: rgba(29, 78, 216, 0.1);
+  --on-accent: #ffffff;
+  --check-ink: #ffffff;
+
+  --p-high: #dc2626;
+  --p-med: #d97706;
+  --p-low: #15803d;
+
+  --shadow: 0 18px 50px -26px rgba(30, 40, 80, 0.3);
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+}
+
+[data-theme="mono"] {
+  --bg: #0e0f10;
+  --bg-2: #141517;
+  --bg-tint: #18191c;
+  --surface: #17181b;
+  --surface-hi: #1f2024;
+  --border: #2a2b30;
+  --border-soft: #2a2b3099;
+
+  --text: #ededee;
+  --text-dim: #9a9ba0;
+  --text-faint: #63646a;
+
+  --accent: #22d3ee;
+  --accent-2: #4ade80;
+  --accent-soft: rgba(34, 211, 238, 0.13);
+  --on-accent: #06181c;
+  --check-ink: #0c1416;
+
+  --p-high: #fb7185;
+  --p-med: #fbbf24;
+  --p-low: #4ade80;
+
+  --shadow: 0 18px 50px -22px rgba(0, 0, 0, 0.85);
+  --font-display: "Space Grotesk", system-ui, sans-serif;
 }
 
 * {
@@ -45,8 +192,7 @@ body {
 body {
   min-height: 100dvh;
   background:
-    radial-gradient(120% 80% at 50% -10%, #1d1730 0%, transparent 55%),
-    radial-gradient(90% 60% at 85% 110%, #16222a 0%, transparent 50%),
+    radial-gradient(120% 80% at 50% -10%, var(--bg-tint) 0%, transparent 55%),
     var(--bg);
   color: var(--text);
   font-family: var(--font-body);
@@ -98,46 +244,6 @@ body {
   letter-spacing: -0.01em;
 }
 
-.status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-faint);
-}
-
-.status__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--text-faint);
-  transition: background 0.3s var(--ease);
-}
-
-.status[data-state="recording"] .status__dot {
-  background: var(--p-high);
-  animation: blink 1s infinite;
-}
-
-.status[data-state="thinking"] .status__dot {
-  background: var(--accent);
-  animation: blink 0.7s infinite;
-}
-
-.status[data-state="ready"] .status__dot,
-.status[data-state="idle"] .status__dot {
-  background: var(--accent-2);
-}
-
-@keyframes blink {
-  50% {
-    opacity: 0.25;
-  }
-}
-
 /* ---- stage ---- */
 
 .stage {
@@ -171,10 +277,11 @@ body {
   font-weight: 600;
   letter-spacing: -0.02em;
   margin: 0;
-  background: linear-gradient(120deg, var(--text) 30%, var(--accent) 75%, var(--accent-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--text);
+}
+
+[data-theme="paper"] .capture__lead {
+  font-style: italic;
 }
 
 .capture__sub {
@@ -221,8 +328,7 @@ body {
   border: 1px solid var(--border);
   box-shadow:
     var(--shadow),
-    0 0 0 1px rgba(155, 124, 255, 0.08),
-    0 0 38px -6px rgba(155, 124, 255, 0.45);
+    0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
   transition: transform 0.4s var(--ease), box-shadow 0.4s var(--ease);
 }
 
@@ -230,8 +336,7 @@ body {
   transform: scale(1.04);
   box-shadow:
     var(--shadow),
-    0 0 0 1px rgba(155, 124, 255, 0.18),
-    0 0 52px -4px rgba(155, 124, 255, 0.6);
+    0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .orb:focus-visible {
@@ -336,8 +441,8 @@ body {
 
 .btn-send {
   align-self: center;
-  background: linear-gradient(120deg, var(--accent), #7c8cff);
-  color: #14101f;
+  background: var(--accent);
+  color: var(--on-accent);
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 0.95rem;
@@ -346,7 +451,7 @@ body {
   padding: 12px 28px;
   cursor: pointer;
   transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), filter 0.2s var(--ease);
-  box-shadow: 0 10px 26px -10px rgba(155, 124, 255, 0.7);
+  box-shadow: 0 10px 26px -12px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .btn-send:hover {
@@ -456,10 +561,10 @@ body {
 
 @keyframes ping {
   0% {
-    box-shadow: 0 0 0 0 rgba(155, 124, 255, 0.5);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent);
   }
   100% {
-    box-shadow: 0 0 0 16px rgba(155, 124, 255, 0);
+    box-shadow: 0 0 0 16px color-mix(in srgb, var(--accent) 0%, transparent);
   }
 }
 
@@ -603,9 +708,8 @@ body {
   gap: 13px;
   background: var(--surface);
   border: 1px solid var(--border-soft);
-  border-left: 3px solid var(--prio, var(--text-faint));
   border-radius: var(--radius-sm);
-  padding: 14px 14px 14px 15px;
+  padding: 14px 15px;
   margin-bottom: 9px;
   animation: rise 0.35s var(--ease) both;
   transition: border-color 0.2s var(--ease), transform 0.2s var(--ease);
@@ -645,7 +749,7 @@ body {
 .check svg {
   width: 13px;
   height: 13px;
-  stroke: #14101f;
+  stroke: var(--check-ink);
   stroke-width: 3;
   fill: none;
   opacity: 0;
@@ -686,9 +790,10 @@ body {
   font-family: var(--font-mono);
   font-size: 0.68rem;
   letter-spacing: 0.03em;
-  padding: 3px 9px;
+  padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: none;
+  background: color-mix(in srgb, var(--text-dim) 10%, transparent);
   color: var(--text-dim);
   display: inline-flex;
   align-items: center;
@@ -696,21 +801,18 @@ body {
 }
 
 .tag--due {
-  color: var(--accent-2);
-  border-color: #5fe0d033;
+  background: color-mix(in srgb, var(--accent-2) 13%, transparent);
+  color: color-mix(in srgb, var(--accent-2) 76%, var(--text));
 }
 
 .tag--overdue {
-  color: var(--p-high);
-  border-color: #ff6b7a33;
+  background: color-mix(in srgb, var(--p-high) 13%, transparent);
+  color: color-mix(in srgb, var(--p-high) 80%, var(--text));
 }
 
-.tag--prio::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--prio);
+.tag--prio {
+  background: color-mix(in srgb, var(--prio) 13%, transparent);
+  color: color-mix(in srgb, var(--prio) 80%, var(--text));
 }
 
 .subtasks {
@@ -770,7 +872,7 @@ body {
 
 .task__del:hover {
   color: var(--p-high);
-  background: #ff6b7a14;
+  background: color-mix(in srgb, var(--p-high) 12%, transparent);
 }
 
 /* ---- empty ---- */
@@ -825,8 +927,8 @@ body {
 }
 
 .toast[data-kind="error"] {
-  border-color: #ff6b7a55;
-  color: #ffd9dd;
+  border-color: color-mix(in srgb, var(--p-high) 55%, transparent);
+  color: var(--p-high);
 }
 
 /* ---- live captions ---- */
@@ -861,8 +963,31 @@ body {
   margin-bottom: 16px;
 }
 
+/* The active follow-up is the single most important interactive moment in the
+   app — the AI is blocked waiting on this answer. Lift it off the static list
+   with an accent-tinted surface, a hairline accent ring, and a slow breathing
+   glow that reads as "waiting for you" without nagging. */
 .followups__stage .fcard {
-  animation: rise 0.3s var(--ease) both;
+  background: linear-gradient(180deg, var(--accent-soft), var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent),
+    0 16px 42px -26px color-mix(in srgb, var(--accent) 50%, transparent);
+  animation: rise 0.3s var(--ease) both, fcardWait 2.8s var(--ease) 0.5s infinite;
+}
+
+@keyframes fcardWait {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent),
+      0 16px 42px -26px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent),
+      0 18px 48px -24px color-mix(in srgb, var(--accent) 66%, transparent);
+  }
 }
 
 /* ---- project bar ---- */
@@ -924,10 +1049,12 @@ body {
 }
 
 .tag--proj {
-  color: var(--pc, var(--text-dim));
-  border-color: color-mix(in srgb, var(--pc, var(--text-dim)) 35%, transparent);
+  background: color-mix(in srgb, var(--pc, var(--text-dim)) 13%, transparent);
+  color: color-mix(in srgb, var(--pc, var(--text-dim)) 80%, var(--text));
 }
 
+/* Project tags keep their color dot — here the color *is* information (which
+   project), unlike the priority dot which only duplicated the tag text. */
 .tag--proj::before {
   content: "";
   width: 6px;
@@ -1207,6 +1334,470 @@ body {
   margin-top: 22px;
 }
 
+/* ---- settings tabs ---- */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 6px 0 18px;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  background: none;
+  border: none;
+  padding: 8px 10px;
+  margin-bottom: -1px;
+  color: var(--text-faint);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease);
+}
+.tab:hover {
+  color: var(--text-dim);
+}
+.tab[aria-selected="true"] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.tabpanel[hidden] {
+  display: none;
+}
+
+/* ---- theme picker ---- */
+
+.themegrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.theme-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  text-align: left;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease);
+}
+.theme-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.theme-card:active {
+  transform: scale(0.99);
+}
+.theme-card[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.theme-card__sw {
+  display: flex;
+  gap: 4px;
+}
+.theme-card__sw span {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1px solid rgba(120, 120, 120, 0.22);
+}
+.theme-card__name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.theme-card__check {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  opacity: 0;
+  color: var(--accent);
+}
+.theme-card[aria-pressed="true"] .theme-card__check {
+  opacity: 1;
+}
+@media (max-width: 480px) {
+  .themegrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Task action row (remind / edit / delete) ===== */
+
+/* Replaces the old hover-only pencil. Always present so the actions are discoverable
+   (touch + mouse), sitting quiet until the row is hovered or focused. */
+.task__actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: -2px -2px 0 0;
+  opacity: 0.5;
+  transition: opacity var(--duration-fast) var(--ease);
+}
+
+.task:hover .task__actions,
+.task:focus-within .task__actions {
+  opacity: 1;
+}
+
+.taskbtn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease);
+}
+
+.taskbtn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.taskbtn:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.taskbtn--danger:hover {
+  color: var(--p-high);
+  background: color-mix(in srgb, var(--p-high) 12%, transparent);
+}
+
+/* The bell sits "armed" (accent-2) when this task already has a pending reminder. */
+.taskbtn--remind[data-armed="true"] {
+  color: var(--accent-2);
+}
+
+.tag--remind {
+  background: color-mix(in srgb, var(--accent-2) 13%, transparent);
+  color: color-mix(in srgb, var(--accent-2) 76%, var(--text));
+}
+
+.tag--remind svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ===== Reminder popover ===== */
+
+.rpop {
+  position: fixed;
+  z-index: 70;
+  width: min(290px, calc(100vw - 28px));
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px;
+  animation: pop 0.18s var(--ease) both;
+}
+
+.rpop__title {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  margin: 0 0 10px;
+}
+
+.rpop__current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 8px 11px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent-2) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-2) 28%, transparent);
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.rpop__clear {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+  transition: color var(--duration-fast) var(--ease);
+}
+
+.rpop__clear:hover {
+  color: var(--p-high);
+}
+
+.rpop__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.rpop__presets .chip {
+  font-size: 0.84rem;
+  padding: 7px 13px;
+}
+
+.rpop__divider {
+  height: 1px;
+  background: var(--border-soft);
+  margin: 13px 0;
+}
+
+.rpop__custom {
+  display: flex;
+  gap: 8px;
+}
+
+.rpop__custom input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  padding: 8px 10px;
+}
+
+.rpop__custom input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.rpop__custom .btn-send {
+  padding: 8px 16px;
+  font-size: 0.85rem;
+}
+
+/* ===== Reminder notifications (persistent cards) ===== */
+
+.notices {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(330px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.notice {
+  pointer-events: auto;
+  position: relative;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--accent-2) 30%, var(--border));
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  padding: 13px 14px 12px;
+  animation: noticeIn 0.32s var(--ease) both;
+}
+
+.notice[data-overdue="true"] {
+  border-color: color-mix(in srgb, var(--p-high) 38%, var(--border));
+  background: color-mix(in srgb, var(--p-high) 6%, var(--surface));
+}
+
+.notice[data-leaving="true"] {
+  animation: noticeOut 0.2s var(--ease) both;
+}
+
+.notice__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.notice__bell {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: var(--accent-2);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.notice[data-overdue="true"] .notice__bell {
+  stroke: var(--p-high);
+}
+
+.notice__reason {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-2);
+}
+
+.notice[data-overdue="true"] .notice__reason {
+  color: var(--p-high);
+}
+
+.notice__dismiss {
+  margin-left: auto;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition: color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease);
+}
+
+.notice__dismiss:hover {
+  color: var(--text);
+  background: var(--bg-2);
+}
+
+.notice__title {
+  font-size: 0.96rem;
+  line-height: 1.35;
+  color: var(--text);
+  margin: 0;
+}
+
+.notice__sub {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-faint);
+  margin: 4px 0 0;
+}
+
+.notice__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 11px;
+}
+
+.notice__btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+}
+
+.notice__btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.notice__btn--primary {
+  margin-left: auto;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.notice__btn--primary:hover {
+  filter: brightness(1.06);
+  color: var(--on-accent);
+}
+
+/* Snooze submenu */
+.notice__snooze {
+  position: relative;
+}
+
+.notice__snoozemenu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 130px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  padding: 5px;
+  animation: pop 0.15s var(--ease) both;
+}
+
+.notice__snoozemenu button {
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 0.84rem;
+  padding: 7px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+}
+
+.notice__snoozemenu button:hover {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+@keyframes noticeIn {
+  from {
+    opacity: 0;
+    transform: translateX(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes noticeOut {
+  to {
+    opacity: 0;
+    transform: translateX(16px) scale(0.98);
+  }
+}
+
 /* ===== Widget (Tauri orb) ===== */
 
 /* In a plain browser none of this applies — the orb stays hidden. */
@@ -1238,7 +1829,8 @@ body.widget *::-webkit-scrollbar {
 body.widget:not(.panel) .grain,
 body.widget:not(.panel) .topbar,
 body.widget:not(.panel) .stage,
-body.widget:not(.panel) .toast {
+body.widget:not(.panel) .toast,
+body.widget:not(.panel) .notices {
   display: none !important;
 }
 body.widget:not(.panel) .widget-orb {
@@ -1252,9 +1844,16 @@ body.widget:not(.panel) .widget-orb {
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: radial-gradient(circle at 34% 28%, #b49bff 0%, var(--accent) 44%, #6a4bd0 100%);
+  background: radial-gradient(
+    circle at 34% 28%,
+    color-mix(in srgb, var(--accent) 65%, white) 0%,
+    var(--accent) 46%,
+    color-mix(in srgb, var(--accent) 72%, black) 100%
+  );
+  /* Soft, near-symmetric aura — small enough to fade out fully inside the
+     transparent window (140px) so it never gets clipped to a rectangle. */
   box-shadow:
-    0 10px 30px -8px rgba(155, 124, 255, 0.7),
+    0 2px 18px 0 color-mix(in srgb, var(--accent) 55%, transparent),
     inset 0 1px 1px rgba(255, 255, 255, 0.35);
   cursor: pointer;
   transition:
@@ -1264,7 +1863,7 @@ body.widget:not(.panel) .widget-orb {
 body.widget:not(.panel) .widget-orb:hover {
   transform: scale(1.06);
   box-shadow:
-    0 14px 40px -8px rgba(155, 124, 255, 0.9),
+    0 3px 22px 0 color-mix(in srgb, var(--accent) 72%, transparent),
     inset 0 1px 1px rgba(255, 255, 255, 0.4);
 }
 body.widget:not(.panel) .widget-orb:active {
@@ -1281,7 +1880,7 @@ body.widget:not(.panel) .widget-orb:active {
   width: 34px;
   height: 34px;
   fill: none;
-  stroke: #fff;
+  stroke: var(--on-accent);
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -1315,7 +1914,7 @@ body.widget.panel {
   border: 1px solid var(--border);
   overflow-y: auto;
   background:
-    radial-gradient(120% 80% at 50% -10%, #1d1730 0%, transparent 55%),
+    radial-gradient(120% 80% at 50% -10%, var(--bg-tint) 0%, transparent 55%),
     var(--bg);
 }
 body.widget.panel .widget-orb {

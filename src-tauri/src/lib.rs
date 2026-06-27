@@ -9,6 +9,7 @@ use tauri::{
     AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindow, WindowEvent,
 };
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
 
@@ -40,11 +41,25 @@ fn set_recording(state: tauri::State<RecordingState>, recording: bool) {
     }
 }
 
+/// Show a native OS notification. Called by the frontend when a reminder fires, so the
+/// user is alerted even while the widget is collapsed to the orb or minimized to tray.
+#[tauri::command]
+fn notify(app: AppHandle, title: String, body: String) {
+    let _ = app
+        .notification()
+        .builder()
+        .title(title)
+        .body(body)
+        .show();
+}
+
 const MARGIN: i32 = 24;
 const TASKBAR_ALLOWANCE: f64 = 48.0;
 
 // Orb (collapsed) vs panel (expanded) window sizes.
-const ORB_SIZE: f64 = 104.0;
+// The orb visual is 88px; the window is larger so the orb's glow can fade out
+// fully inside transparent space instead of being clipped to the window rect.
+const ORB_SIZE: f64 = 140.0;
 const PANEL_W: f64 = 400.0;
 const PANEL_H: f64 = 600.0;
 
@@ -225,13 +240,15 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .manage(RecordingState::default())
         .manage(Sidecar::default())
         .manage(ApiPort::default())
         .invoke_handler(tauri::generate_handler![
             set_recording,
             set_expanded,
-            get_api_port
+            get_api_port,
+            notify
         ])
         .setup(|app| {
             // Log in release too, to a file in the app log dir, so we can diagnose the

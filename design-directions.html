@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ramble — design directions</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Spectral:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter+Tight:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      :root {
+        --pagebg: #0d0d10;
+        --pageink: #e7e6ea;
+        --pagedim: #9a98a4;
+        --line: #26252c;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--pagebg);
+        color: var(--pageink);
+        font-family: "Inter Tight", system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.5;
+      }
+
+      /* ---- page chrome ---- */
+      .masthead {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 56px clamp(20px, 5vw, 48px) 8px;
+      }
+      .masthead h1 {
+        font-family: "Space Grotesk", sans-serif;
+        font-size: clamp(1.8rem, 1rem + 3vw, 2.9rem);
+        letter-spacing: -0.025em;
+        margin: 0;
+        font-weight: 600;
+      }
+      .masthead p {
+        color: var(--pagedim);
+        max-width: 60ch;
+        margin: 12px 0 0;
+        font-size: 1.02rem;
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        margin-top: 22px;
+        font-size: 0.82rem;
+        color: var(--pagedim);
+      }
+      .legend b {
+        color: var(--pageink);
+        font-weight: 600;
+      }
+
+      .grid {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 28px clamp(20px, 5vw, 48px) 96px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        gap: 28px;
+        align-items: start;
+      }
+
+      .dir {
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        overflow: hidden;
+        background: #131217;
+      }
+      .dir__bar {
+        padding: 18px 20px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+      .dir__name {
+        font-family: "Space Grotesk", sans-serif;
+        font-weight: 600;
+        font-size: 1.12rem;
+        letter-spacing: -0.01em;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+      .dir__tag {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.6rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--pagedim);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 3px 8px;
+      }
+      .dir__why {
+        color: var(--pagedim);
+        font-size: 0.86rem;
+        margin: 9px 0 0;
+      }
+      .swatches {
+        display: flex;
+        gap: 6px;
+        margin-top: 14px;
+      }
+      .sw {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      /* The mockup viewport — each direction paints inside this. */
+      .mock {
+        position: relative;
+        padding: 22px 20px 24px;
+        min-height: 540px;
+      }
+
+      /* ===== shared structural styles (re-tokened per direction) ===== */
+      .m-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+      }
+      .m-word {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--m-display);
+        font-weight: 600;
+        font-size: 1.05rem;
+        letter-spacing: -0.01em;
+        color: var(--m-text);
+      }
+      .m-bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 2px;
+        height: 16px;
+      }
+      .m-bars i {
+        width: 2.5px;
+        background: var(--m-accent);
+        border-radius: 2px;
+        display: block;
+      }
+      .m-status {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-family: var(--m-mono);
+        font-size: 0.62rem;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--m-faint);
+      }
+      .m-status .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--m-accent);
+        box-shadow: var(--m-livedot, none);
+      }
+
+      .m-lead {
+        font-family: var(--m-display);
+        font-size: 1.5rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        color: var(--m-text);
+        margin: 6px 0 4px;
+        text-align: center;
+      }
+      .m-sub {
+        color: var(--m-dim);
+        text-align: center;
+        font-size: 0.86rem;
+        margin: 0 auto;
+        max-width: 34ch;
+      }
+
+      .m-orb {
+        position: relative;
+        width: 116px;
+        height: 116px;
+        margin: 20px auto 14px;
+        display: grid;
+        place-items: center;
+      }
+      .m-orb .ring {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        border: 1.5px solid var(--m-accent);
+        opacity: 0.18;
+      }
+      .m-orb .ring:nth-child(2) {
+        inset: 12px;
+        opacity: 0.32;
+      }
+      .m-orb .core {
+        position: relative;
+        width: 58px;
+        height: 58px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: var(--m-orbcore);
+        border: 1px solid var(--m-orbborder);
+        box-shadow: var(--m-orbshadow);
+      }
+      .m-orb svg {
+        width: 24px;
+        height: 24px;
+        fill: none;
+        stroke: var(--m-accent);
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .m-hint {
+        font-family: var(--m-mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.05em;
+        color: var(--m-faint);
+        text-align: center;
+        margin: 0 0 18px;
+      }
+
+      /* follow-up card */
+      .m-fcard {
+        background: var(--m-surfhi);
+        border: 1px solid var(--m-border);
+        border-radius: 13px;
+        padding: 13px 14px;
+        margin-bottom: 18px;
+      }
+      .m-fcard .for {
+        font-family: var(--m-mono);
+        font-size: 0.6rem;
+        color: var(--m-faint);
+        letter-spacing: 0.04em;
+      }
+      .m-fcard .q {
+        margin: 5px 0 11px;
+        font-size: 0.92rem;
+        color: var(--m-text);
+      }
+      .m-chips {
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+      }
+      .m-chip {
+        font-size: 0.8rem;
+        border-radius: 999px;
+        padding: 6px 13px;
+        border: 1px solid var(--m-border);
+        color: var(--m-dim);
+        background: var(--m-surf);
+      }
+      .m-chip.on {
+        border-color: var(--m-accent);
+        color: var(--m-text);
+        background: var(--m-accentsoft);
+      }
+
+      /* task groups */
+      .m-grouplabel {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-family: var(--m-display);
+        font-size: 0.78rem;
+        font-weight: 500;
+        color: var(--m-text);
+        margin: 4px 0 9px;
+      }
+      .m-grouplabel .note {
+        font-family: var(--m-mono);
+        font-size: 0.6rem;
+        color: var(--m-faint);
+        font-weight: 400;
+      }
+      .m-grouplabel .rule {
+        flex: 1;
+        height: 1px;
+        background: var(--m-border);
+      }
+      .m-task {
+        display: flex;
+        align-items: flex-start;
+        gap: 11px;
+        background: var(--m-surf);
+        border: 1px solid var(--m-border);
+        border-left: 3px solid var(--prio, var(--m-faint));
+        border-radius: 10px;
+        padding: 11px 12px;
+        margin-bottom: 8px;
+      }
+      .m-check {
+        flex-shrink: 0;
+        width: 19px;
+        height: 19px;
+        margin-top: 1px;
+        border-radius: 6px;
+        border: 1.6px solid var(--m-border);
+        display: grid;
+        place-items: center;
+      }
+      .m-task.done .m-check {
+        background: var(--m-accent);
+        border-color: var(--m-accent);
+      }
+      .m-task.done .m-check::after {
+        content: "";
+        width: 9px;
+        height: 5px;
+        border-left: 2px solid var(--m-checkmark);
+        border-bottom: 2px solid var(--m-checkmark);
+        transform: rotate(-45deg) translateY(-1px);
+      }
+      .m-task .t-body {
+        flex: 1;
+        min-width: 0;
+      }
+      .m-title {
+        font-size: 0.92rem;
+        color: var(--m-text);
+        line-height: 1.35;
+      }
+      .m-task.done .m-title {
+        text-decoration: line-through;
+        color: var(--m-dim);
+      }
+      .m-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 7px;
+      }
+      .m-pill {
+        font-family: var(--m-mono);
+        font-size: 0.6rem;
+        letter-spacing: 0.02em;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--m-border);
+        color: var(--m-dim);
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .m-pill.due {
+        color: var(--m-accent);
+        border-color: var(--m-accentline);
+      }
+      .m-pill.prio::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--prio);
+      }
+      .m-collapsed {
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px dashed var(--m-border);
+        display: flex;
+        align-items: center;
+        gap: 13px;
+      }
+      .m-collapsed .label {
+        font-size: 0.78rem;
+        color: var(--m-dim);
+      }
+      .m-collapsed .label b {
+        color: var(--m-text);
+        font-weight: 600;
+        font-family: var(--m-display);
+      }
+      .orb-mini {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        display: grid;
+        place-items: center;
+        background: var(--m-orbmini);
+        box-shadow: var(--m-orbminishadow);
+      }
+      .orb-mini svg {
+        width: 22px;
+        height: 22px;
+        fill: none;
+        stroke: var(--m-orbminiicon);
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      /* ============ DIRECTION 1 — GRAPHITE & EMBER ============ */
+      .d-ember .mock {
+        --m-display: "Space Grotesk", sans-serif;
+        --m-mono: "JetBrains Mono", monospace;
+        --m-text: #f0ece4;
+        --m-dim: #b3ab9c;
+        --m-faint: #7c7567;
+        --m-accent: #ff8a3d;
+        --m-accentsoft: rgba(255, 138, 61, 0.14);
+        --m-accentline: rgba(255, 138, 61, 0.32);
+        --m-surf: #211f1a;
+        --m-surfhi: #2a261f;
+        --m-border: #36322a;
+        --m-checkmark: #1a1612;
+        --m-livedot: 0 0 9px 1px rgba(255, 138, 61, 0.8);
+        --m-orbcore: radial-gradient(circle at 36% 30%, #2f2a22, #211f1a);
+        --m-orbborder: #3c372d;
+        --m-orbshadow: inset 0 1px 1px rgba(255, 255, 255, 0.05),
+          0 10px 26px -12px rgba(0, 0, 0, 0.8);
+        --m-orbmini: radial-gradient(circle at 35% 30%, #ffb07a 0%, #ff8a3d 46%, #d96a1f 100%);
+        --m-orbminishadow: 0 4px 16px -2px rgba(255, 138, 61, 0.5);
+        --m-orbminiicon: #1a1208;
+        background:
+          radial-gradient(120% 80% at 50% -10%, #221d15 0%, transparent 55%),
+          #181714;
+      }
+      .d-ember .m-orb .core {
+        box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05),
+          0 10px 26px -12px rgba(0, 0, 0, 0.8), 0 0 0 6px rgba(255, 138, 61, 0.04);
+      }
+
+      /* ============ DIRECTION 2 — PAPER & INK ============ */
+      .d-paper .mock {
+        --m-display: "Spectral", serif;
+        --m-mono: "JetBrains Mono", monospace;
+        --m-text: #1c1a17;
+        --m-dim: #6b6358;
+        --m-faint: #9c948857;
+        --m-faint: #948b7d;
+        --m-accent: #c2410c;
+        --m-accentsoft: rgba(194, 65, 12, 0.09);
+        --m-accentline: rgba(194, 65, 12, 0.3);
+        --m-surf: #ffffff;
+        --m-surfhi: #fbf9f5;
+        --m-border: #e3ddd1;
+        --m-checkmark: #ffffff;
+        --m-livedot: 0 0 9px 1px rgba(194, 65, 12, 0.5);
+        --m-orbcore: #ffffff;
+        --m-orbborder: #e3ddd1;
+        --m-orbshadow: 0 8px 22px -10px rgba(60, 50, 35, 0.35);
+        --m-orbmini: radial-gradient(circle at 35% 30%, #f07a44 0%, #c2410c 60%, #9a3409 100%);
+        --m-orbminishadow: 0 4px 16px -3px rgba(194, 65, 12, 0.45);
+        --m-orbminiicon: #fff;
+        background:
+          radial-gradient(120% 80% at 50% -10%, #fbf8f1 0%, transparent 55%),
+          #f4f1ea;
+      }
+      .d-paper .m-lead {
+        font-style: italic;
+        font-weight: 500;
+      }
+      .d-paper .m-orb .ring {
+        border-style: solid;
+      }
+
+      /* ============ DIRECTION 3 — REFINE DUSK ============ */
+      .d-dusk .mock {
+        --m-display: "Space Grotesk", sans-serif;
+        --m-mono: "JetBrains Mono", monospace;
+        --m-text: #ece8f4;
+        --m-dim: #a79fbb;
+        --m-faint: #6f6883;
+        --m-accent: #8b7bd8;
+        --m-accentsoft: rgba(139, 123, 216, 0.16);
+        --m-accentline: rgba(139, 123, 216, 0.34);
+        --m-surf: #1e1a28;
+        --m-surfhi: #271f36;
+        --m-border: #332c44;
+        --m-checkmark: #14101f;
+        --m-livedot: none;
+        --m-orbcore: radial-gradient(circle at 35% 30%, #271f36, #1e1a28);
+        --m-orbborder: #3a3350;
+        --m-orbshadow: inset 0 1px 1px rgba(255, 255, 255, 0.05),
+          0 12px 28px -14px rgba(0, 0, 0, 0.8);
+        --m-orbmini: radial-gradient(circle at 34% 28%, #a89be0 0%, #8b7bd8 48%, #6a5bc0 100%);
+        --m-orbminishadow: 0 4px 16px -3px rgba(139, 123, 216, 0.4);
+        --m-orbminiicon: #fff;
+        background:
+          radial-gradient(120% 80% at 50% -10%, #1d1730 0%, transparent 55%),
+          #131119;
+      }
+
+      /* ============ DIRECTION 4 — FOREST ============ */
+      .d-forest .mock {
+        --m-display: "Space Grotesk", sans-serif;
+        --m-mono: "JetBrains Mono", monospace;
+        --m-text: #e8ede2;
+        --m-dim: #a3ad99;
+        --m-faint: #6c7563;
+        --m-accent: #cdaa5e;
+        --m-accentsoft: rgba(205, 170, 94, 0.14);
+        --m-accentline: rgba(205, 170, 94, 0.34);
+        --m-surf: #1a2317;
+        --m-surfhi: #222d1d;
+        --m-border: #2f3a2a;
+        --m-checkmark: #14160f;
+        --m-livedot: 0 0 9px 1px rgba(205, 170, 94, 0.7);
+        --m-orbcore: radial-gradient(circle at 36% 30%, #243020, #1a2317);
+        --m-orbborder: #344028;
+        --m-orbshadow: inset 0 1px 1px rgba(255, 255, 255, 0.05),
+          0 10px 26px -12px rgba(0, 0, 0, 0.8);
+        --m-orbmini: radial-gradient(circle at 35% 30%, #e7cd8c 0%, #cdaa5e 48%, #a9842f 100%);
+        --m-orbminishadow: 0 4px 16px -3px rgba(205, 170, 94, 0.45);
+        --m-orbminiicon: #1a1408;
+        background:
+          radial-gradient(120% 80% at 50% -10%, #18241390 0%, transparent 55%),
+          #101610;
+      }
+
+      /* ============ DIRECTION 5 — COBALT & CREAM ============ */
+      .d-cobalt .mock {
+        --m-display: "Space Grotesk", sans-serif;
+        --m-mono: "JetBrains Mono", monospace;
+        --m-text: #15171c;
+        --m-dim: #585c66;
+        --m-faint: #8a8e98;
+        --m-accent: #1d4ed8;
+        --m-accentsoft: rgba(29, 78, 216, 0.1);
+        --m-accentline: rgba(29, 78, 216, 0.3);
+        --m-surf: #ffffff;
+        --m-surfhi: #f6f7fb;
+        --m-border: #e1e2e6;
+        --m-checkmark: #ffffff;
+        --m-livedot: 0 0 9px 1px rgba(29, 78, 216, 0.45);
+        --m-orbcore: #ffffff;
+        --m-orbborder: #e1e2e6;
+        --m-orbshadow: 0 8px 22px -10px rgba(30, 40, 80, 0.32);
+        --m-orbmini: radial-gradient(circle at 35% 30%, #5b8cf5 0%, #1d4ed8 58%, #1740ad 100%);
+        --m-orbminishadow: 0 4px 16px -3px rgba(29, 78, 216, 0.45);
+        --m-orbminiicon: #fff;
+        background:
+          radial-gradient(120% 80% at 50% -10%, #ffffff 0%, transparent 55%),
+          #f2f1ee;
+      }
+
+      /* ============ DIRECTION 6 — MONO SIGNAL ============ */
+      .d-mono .mock {
+        --m-display: "Space Grotesk", sans-serif;
+        --m-mono: "JetBrains Mono", monospace;
+        --m-text: #ededee;
+        --m-dim: #9a9ba0;
+        --m-faint: #63646a;
+        --m-accent: #22d3ee;
+        --m-accentsoft: rgba(34, 211, 238, 0.13);
+        --m-accentline: rgba(34, 211, 238, 0.32);
+        --m-surf: #17181b;
+        --m-surfhi: #1f2024;
+        --m-border: #2a2b30;
+        --m-checkmark: #0c1416;
+        --m-livedot: 0 0 9px 1px rgba(34, 211, 238, 0.75);
+        --m-orbcore: radial-gradient(circle at 36% 30%, #202125, #17181b);
+        --m-orbborder: #2e2f34;
+        --m-orbshadow: inset 0 1px 1px rgba(255, 255, 255, 0.05),
+          0 10px 26px -12px rgba(0, 0, 0, 0.85);
+        --m-orbmini: radial-gradient(circle at 35% 30%, #7ee8f7 0%, #22d3ee 48%, #0e9bb4 100%);
+        --m-orbminishadow: 0 4px 18px -3px rgba(34, 211, 238, 0.5);
+        --m-orbminiicon: #06181c;
+        background:
+          radial-gradient(120% 80% at 50% -10%, #18191c 0%, transparent 55%),
+          #0e0f10;
+      }
+
+      .note-foot {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 0 clamp(20px, 5vw, 48px) 80px;
+        color: var(--pagedim);
+        font-size: 0.85rem;
+      }
+      .note-foot code {
+        font-family: "JetBrains Mono", monospace;
+        color: var(--pageink);
+        font-size: 0.8rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="masthead">
+      <h1>Ramble — six directions</h1>
+      <p>
+        Each panel is the real Ramble flow re-skinned: top bar, capture orb, an adaptive
+        follow-up, a date-grouped task list, and the collapsed orb. Two light, four dark;
+        warm and cool. Compare the feel, then pick one (or mix) and I'll rebuild the app to match.
+      </p>
+      <div class="legend">
+        <span><b>Locked across all three:</b> one accent, zero outer-glow slop, tinted shadows, semantic tokens, no gradient text.</span>
+      </div>
+    </header>
+
+    <main class="grid">
+      <!-- ============ DIRECTION 1 ============ -->
+      <section class="dir d-ember">
+        <div class="dir__bar">
+          <h2 class="dir__name">Graphite &amp; Ember <span class="dir__tag">dark · overhaul</span></h2>
+          <p class="dir__why">
+            Warm charcoal, one amber accent that reads as a literal live-mic light. Nocturnal
+            and calm; kills every purple/glow tell.
+          </p>
+          <div class="swatches">
+            <span class="sw" style="background:#181714"></span>
+            <span class="sw" style="background:#211f1a"></span>
+            <span class="sw" style="background:#f0ece4"></span>
+            <span class="sw" style="background:#ff8a3d"></span>
+            <span class="sw" style="background:#e8696e"></span>
+            <span class="sw" style="background:#86b88a"></span>
+          </div>
+        </div>
+        <div class="mock"></div>
+      </section>
+
+      <!-- ============ DIRECTION 2 ============ -->
+      <section class="dir d-paper">
+        <div class="dir__bar">
+          <h2 class="dir__name">Paper &amp; Ink <span class="dir__tag">light · big swing</span></h2>
+          <p class="dir__why">
+            A daytime tool. Warm paper, near-black ink, burnt-rust accent; the transcript reads
+            like a manuscript. Editorial and crisp.
+          </p>
+          <div class="swatches">
+            <span class="sw" style="background:#f4f1ea"></span>
+            <span class="sw" style="background:#ffffff"></span>
+            <span class="sw" style="background:#1c1a17"></span>
+            <span class="sw" style="background:#c2410c"></span>
+            <span class="sw" style="background:#b45309"></span>
+            <span class="sw" style="background:#4d7c45"></span>
+          </div>
+        </div>
+        <div class="mock"></div>
+      </section>
+
+      <!-- ============ DIRECTION 3 ============ -->
+      <section class="dir d-dusk">
+        <div class="dir__bar">
+          <h2 class="dir__name">Refine Dusk <span class="dir__tag">dark · evolve</span></h2>
+          <p class="dir__why">
+            Keeps the violet identity but desaturated, with glows removed and shadows tinted.
+            Lowest risk: same soul, slop stripped out.
+          </p>
+          <div class="swatches">
+            <span class="sw" style="background:#131119"></span>
+            <span class="sw" style="background:#1e1a28"></span>
+            <span class="sw" style="background:#ece8f4"></span>
+            <span class="sw" style="background:#8b7bd8"></span>
+            <span class="sw" style="background:#e0828c"></span>
+            <span class="sw" style="background:#6ec3a0"></span>
+          </div>
+        </div>
+        <div class="mock"></div>
+      </section>
+
+      <!-- ============ DIRECTION 4 ============ -->
+      <section class="dir d-forest">
+        <div class="dir__bar">
+          <h2 class="dir__name">Forest <span class="dir__tag">dark · overhaul</span></h2>
+          <p class="dir__why">
+            Deep forest green, bone text, antique-gold accent like a lamp in the woods. Warm,
+            grounded, quiet; cooler cousin to Ember.
+          </p>
+          <div class="swatches">
+            <span class="sw" style="background:#101610"></span>
+            <span class="sw" style="background:#1a2317"></span>
+            <span class="sw" style="background:#e8ede2"></span>
+            <span class="sw" style="background:#cdaa5e"></span>
+            <span class="sw" style="background:#d98a7a"></span>
+            <span class="sw" style="background:#8fbf86"></span>
+          </div>
+        </div>
+        <div class="mock"></div>
+      </section>
+
+      <!-- ============ DIRECTION 5 ============ -->
+      <section class="dir d-cobalt">
+        <div class="dir__bar">
+          <h2 class="dir__name">Cobalt &amp; Cream <span class="dir__tag">light · big swing</span></h2>
+          <p class="dir__why">
+            A bold daytime tool. Cool cream, near-black text, one saturated cobalt accent.
+            Confident and crisp, no beige, no purple.
+          </p>
+          <div class="swatches">
+            <span class="sw" style="background:#f2f1ee"></span>
+            <span class="sw" style="background:#ffffff"></span>
+            <span class="sw" style="background:#15171c"></span>
+            <span class="sw" style="background:#1d4ed8"></span>
+            <span class="sw" style="background:#dc2626"></span>
+            <span class="sw" style="background:#15803d"></span>
+          </div>
+        </div>
+        <div class="mock"></div>
+      </section>
+
+      <!-- ============ DIRECTION 6 ============ -->
+      <section class="dir d-mono">
+        <div class="dir__bar">
+          <h2 class="dir__name">Mono Signal <span class="dir__tag">dark · overhaul</span></h2>
+          <p class="dir__why">
+            Neutral near-black with a single electric-cyan signal. Minimal cockpit calm; the
+            accent only appears where it means something.
+          </p>
+          <div class="swatches">
+            <span class="sw" style="background:#0e0f10"></span>
+            <span class="sw" style="background:#17181b"></span>
+            <span class="sw" style="background:#ededee"></span>
+            <span class="sw" style="background:#22d3ee"></span>
+            <span class="sw" style="background:#fb7185"></span>
+            <span class="sw" style="background:#4ade80"></span>
+          </div>
+        </div>
+        <div class="mock"></div>
+      </section>
+    </main>
+
+    <p class="note-foot">
+      Preview only — built from your real DOM structure in <code>public/</code>. Reduced-motion
+      and contrast were respected in the token choices. Tell me the winner (or mix: e.g.
+      "Ember palette, Paper's serif lead") and I'll re-token <code>styles.css</code> + adjust the markup.
+    </p>
+
+    <script>
+      // One template, painted into every direction so the comparison is honest.
+      const RECORDING_BARS = 22;
+      function bars() {
+        let h = "";
+        const seed = [6, 11, 4, 14, 9, 16, 7, 12, 5, 10, 13, 8];
+        for (let i = 0; i < seed.length; i++) h += `<i style="height:${seed[i]}px"></i>`;
+        return h;
+      }
+      const PANEL = (opts) => `
+        <div class="m-top">
+          <span class="m-word"><span class="m-bars">${bars()}</span>Ramble</span>
+          <span class="m-status"><span class="dot"></span>${opts.status}</span>
+        </div>
+
+        <p class="m-lead">${opts.lead}</p>
+        <p class="m-sub">Tap and ramble. I'll turn the mess into a sorted list.</p>
+
+        <div class="m-orb">
+          <span class="ring"></span><span class="ring"></span>
+          <span class="core">
+            <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6"/></svg>
+          </span>
+        </div>
+        <p class="m-hint">${opts.hint}</p>
+
+        <div class="m-fcard">
+          <p class="for">&#8627; finish the deck</p>
+          <p class="q">When's this due?</p>
+          <div class="m-chips">
+            <span class="m-chip on">Friday</span>
+            <span class="m-chip">Next week</span>
+            <span class="m-chip">No date</span>
+          </div>
+        </div>
+
+        <div class="m-grouplabel">Today <span class="note">Jun 27</span><span class="rule"></span></div>
+        <div class="m-task" style="--prio:${opts.high}">
+          <span class="m-check"></span>
+          <div class="t-body">
+            <div class="m-title">Call the dentist to reschedule</div>
+            <div class="m-meta"><span class="m-pill due">Today</span><span class="m-pill prio" style="--prio:${opts.high}">high</span></div>
+          </div>
+        </div>
+        <div class="m-task done" style="--prio:${opts.low}">
+          <span class="m-check"></span>
+          <div class="t-body">
+            <div class="m-title">Buy groceries for the week</div>
+            <div class="m-meta"><span class="m-pill prio" style="--prio:${opts.low}">low</span></div>
+          </div>
+        </div>
+
+        <div class="m-grouplabel">Friday <span class="note">Jun 30</span><span class="rule"></span></div>
+        <div class="m-task" style="--prio:${opts.med}">
+          <span class="m-check"></span>
+          <div class="t-body">
+            <div class="m-title">Finish the Q3 deck</div>
+            <div class="m-meta"><span class="m-pill due">Jun 30</span><span class="m-pill prio" style="--prio:${opts.med}">medium</span></div>
+          </div>
+        </div>
+
+        <div class="m-collapsed">
+          <span class="orb-mini">
+            <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6"/></svg>
+          </span>
+          <span class="label"><b>Collapsed orb</b><br />Pinned bottom-right · summon with a hotkey</span>
+        </div>
+      `;
+
+      const CFG = {
+        ".d-ember .mock": { status: "Listening", lead: "Say it. I'll sort it.", hint: "tap to speak", high: "#e8696e", med: "#e6a23c", low: "#86b88a" },
+        ".d-paper .mock": { status: "Ready", lead: "Say it. I'll sort it.", hint: "tap to speak", high: "#c2410c", med: "#b45309", low: "#4d7c45" },
+        ".d-dusk .mock": { status: "Ready", lead: "Say it. I'll sort it.", hint: "tap to speak", high: "#e0828c", med: "#e0b15e", low: "#6ec3a0" },
+        ".d-forest .mock": { status: "Listening", lead: "Say it. I'll sort it.", hint: "tap to speak", high: "#d98a7a", med: "#cdaa5e", low: "#8fbf86" },
+        ".d-cobalt .mock": { status: "Ready", lead: "Say it. I'll sort it.", hint: "tap to speak", high: "#dc2626", med: "#d97706", low: "#15803d" },
+        ".d-mono .mock": { status: "Listening", lead: "Say it. I'll sort it.", hint: "tap to speak", high: "#fb7185", med: "#fbbf24", low: "#4ade80" },
+      };
+      for (const [sel, opts] of Object.entries(CFG)) {
+        document.querySelector(sel).innerHTML = PANEL(opts);
+      }
+    </script>
+  </body>
+</html>
