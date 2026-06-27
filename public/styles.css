@@ -386,12 +386,21 @@ body {
   animation: rise 0.4s var(--ease) both;
 }
 
+.transcript__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
 .transcript__label {
   font-family: var(--font-mono);
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--accent-2);
+}
+.transcript__head .iconbtn--sm {
+  flex: none;
 }
 
 .transcript__edit {

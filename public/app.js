@@ -294,6 +294,20 @@ els.rerecord.addEventListener("click", () => {
   startRecording();
 });
 
+// Cancel: abort the current ramble, reset to idle, and collapse the widget to the orb.
+function cancelCapture() {
+  if (recording) stopRecording();
+  els.transcript.hidden = true;
+  els.followups.hidden = true;
+  const thinking = document.getElementById("thinking");
+  if (thinking) thinking.hidden = true;
+  els.transcriptText.value = "";
+  els.liveCaption.hidden = true;
+  els.hint.textContent = "Tap to speak";
+  if (IS_WIDGET) setMode("orb");
+}
+document.getElementById("transcriptCancel").addEventListener("click", cancelCapture);
+
 // ---------- AI pipeline ----------
 
 async function transcribe(blob) {

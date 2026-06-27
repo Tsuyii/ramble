@@ -87,7 +87,14 @@
 
       <!-- EDITABLE TRANSCRIPT -->
       <section class="transcript" id="transcript" hidden>
-        <span class="transcript__label">Heard — fix anything I got wrong, then sort it</span>
+        <div class="transcript__head">
+          <span class="transcript__label">Heard — fix anything I got wrong, then sort it</span>
+          <button class="iconbtn iconbtn--sm" id="transcriptCancel" type="button" aria-label="Cancel" title="Cancel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
         <textarea class="transcript__edit" id="transcriptText" rows="3" aria-label="Edit transcript"></textarea>
         <div class="transcript__actions">
           <button class="btn-ghost" id="rerecord" type="button">Re-record</button>
