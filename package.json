@@ -9,7 +9,9 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "electron": "electron .",
-    "electron:build": "electron-builder"
+    "electron:build": "electron-builder",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
@@ -17,6 +19,7 @@
     "multer": "^2.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8"
   },

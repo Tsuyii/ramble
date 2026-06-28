@@ -48,7 +48,18 @@ const els = {
   profileBtn: $("profileBtn"),
   profileName: $("profileName"),
   profileAvatar: $("profileAvatar"),
+  detailPanel: $("detailPanel"),
+  detailScroll: $("detailScroll"),
+  detailSpine: $("detailSpine"),
+  detailCheck: $("detailCheck"),
+  detailSaved: $("detailSaved"),
+  detailDelete: $("detailDelete"),
 };
+
+// Fixed tag hues (ADR-0008). Names map to a hue deterministically so a tag keeps its
+// color everywhere; chips mix the hue with theme --text so they stay legible in all 6 themes.
+const TAG_HUES = 6;
+const TAG_LIMIT = 8; // mirror the server's MAX_TAGS
 
 const PRIO_COLOR = { high: "var(--p-high)", medium: "var(--p-med)", low: "var(--p-low)" };
 
@@ -63,6 +74,7 @@ const state = {
   projects: [],
   tasks: [],
   filter: "all", // "all" | "inbox" | projectId
+  detailId: null, // task open in the right-side detail panel, or null
 };
 
 let mediaRecorder = null;
@@ -838,7 +850,7 @@ function taskEl(t, overdue) {
   title.className = "task__title";
   title.textContent = t.title;
   title.title = "Click to edit";
-  title.addEventListener("click", () => openEditor(t, el, overdue));
+  title.addEventListener("click", () => openDetail(t));
   body.appendChild(title);
 
   const meta = document.createElement("div");
@@ -849,6 +861,9 @@ function taskEl(t, overdue) {
     proj.style.setProperty("--pc", projectColor(t.projectId));
     proj.textContent = projectName(t.projectId);
     meta.appendChild(proj);
+  }
+  if (Array.isArray(t.tags)) {
+    for (const tag of t.tags) meta.appendChild(tagChip(tag));
   }
   if (t.due) {
     const due = document.createElement("span");
@@ -906,7 +921,7 @@ function taskEl(t, overdue) {
   editBtn.title = "Edit";
   editBtn.setAttribute("aria-label", "Edit task");
   editBtn.innerHTML = ICON.edit;
-  editBtn.addEventListener("click", () => openEditor(t, el, overdue));
+  editBtn.addEventListener("click", () => openDetail(t));
 
   const delBtn = document.createElement("button");
   delBtn.className = "taskbtn taskbtn--danger";
@@ -921,58 +936,264 @@ function taskEl(t, overdue) {
   return el;
 }
 
-// ---------- inline editor ----------
+// ---------- task detail panel (right-side, edit-in-place — ADR-0007/0008) ----------
 
-function openEditor(t, el, overdue) {
-  if (el.querySelector(".editor")) return; // already open
-  const editor = document.createElement("div");
-  editor.className = "editor";
-  const projectOptions = [
-    `<option value="inbox"${t.projectId === "inbox" || !t.projectId ? " selected" : ""}>Inbox</option>`,
-    ...state.projects.map((p) => `<option value="${p.id}"${t.projectId === p.id ? " selected" : ""}>${escapeHtml(p.name)}</option>`),
-  ].join("");
-  const prio = (v, label) => `<option value="${v}"${(t.priority || "") === v ? " selected" : ""}>${label}</option>`;
-  editor.innerHTML = `
-    <label class="editor__row"><span>Task</span><input class="editor__input" data-f="title" value="${escapeHtml(t.title)}" /></label>
-    <div class="editor__grid">
-      <label class="editor__row"><span>Due</span><input class="editor__input" data-f="due" type="date" value="${t.due || ""}" /></label>
-      <label class="editor__row"><span>Priority</span><select class="editor__input" data-f="priority">
-        ${prio("", "—")}${prio("high", "High")}${prio("medium", "Medium")}${prio("low", "Low")}
-      </select></label>
-    </div>
-    <label class="editor__row"><span>Project</span><select class="editor__input" data-f="projectId">${projectOptions}</select></label>
-    <div class="editor__actions">
-      <button class="btn-ghost editor__del" type="button">Delete</button>
-      <span style="flex:1"></span>
-      <button class="btn-ghost editor__cancel" type="button">Cancel</button>
-      <button class="btn-send editor__save" type="button">Save</button>
-    </div>`;
-  el.appendChild(editor);
-  el.classList.add("task--editing");
+// Map a tag name to one of the fixed hues so a tag keeps its color everywhere.
+function tagHue(name) {
+  const s = String(name);
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return (h % TAG_HUES) + 1;
+}
 
-  editor.querySelector(".editor__cancel").addEventListener("click", () => closeEditor(el));
-  editor.querySelector(".editor__del").addEventListener("click", () => deleteTask(t, el));
-  editor.querySelector(".editor__save").addEventListener("click", async () => {
-    const get = (f) => editor.querySelector(`[data-f="${f}"]`).value;
-    const patch = {
-      title: get("title").trim(),
-      due: get("due") || null,
-      priority: get("priority") || null,
-      projectId: get("projectId"),
-    };
-    await fetch(`/api/tasks/${t.id}`, {
+// A read-only colored tag pill for the task card.
+function tagChip(name) {
+  const span = document.createElement("span");
+  span.className = "tag tag--label";
+  span.style.setProperty("--tc", `var(--tagc-${tagHue(name)})`);
+  span.textContent = name;
+  return span;
+}
+
+function isoToLocalInput(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function localInputToIso(v) {
+  if (!v) return null;
+  const d = new Date(v);
+  return isNaN(d) ? null : d.toISOString();
+}
+
+function autoGrow(el) {
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
+let _savedTimer = null;
+function flashSaved(msg = "Saved ✦") {
+  if (!els.detailSaved) return;
+  els.detailSaved.textContent = msg;
+  els.detailSaved.dataset.show = "true";
+  clearTimeout(_savedTimer);
+  _savedTimer = setTimeout(() => (els.detailSaved.dataset.show = "false"), 1400);
+}
+
+// Commit a change to a task: update locally (optimistic), re-render the list + sidebar,
+// then persist. The detail panel edits in place, so every field saves on change.
+async function patchTask(t, patch) {
+  Object.assign(t, patch);
+  renderTasks();
+  renderSidebar();
+  flashSaved();
+  try {
+    const res = await fetch(`/api/tasks/${t.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
-    await refresh();
-    toast("Saved ✦");
-  });
+    if (!res.ok) throw new Error(String(res.status));
+  } catch {
+    flashSaved("Couldn't save");
+    toast("Couldn't save — check your connection");
+  }
 }
 
-function closeEditor(el) {
-  el.querySelector(".editor")?.remove();
-  el.classList.remove("task--editing");
+let _detailCloseTimer = null;
+
+function openDetail(t) {
+  if (!els.detailPanel) return;
+  clearTimeout(_detailCloseTimer);
+  state.detailId = t.id;
+  if (els.detailSpine) els.detailSpine.style.background = projectColor(t.projectId);
+  syncDetailCheck(t);
+  buildDetailBody(t);
+  els.detailPanel.hidden = false;
+  requestAnimationFrame(() => els.detailPanel.classList.add("detail--open"));
+  const ti = $("detailTitleInput");
+  if (ti) {
+    autoGrow(ti);
+    ti.focus({ preventScroll: true });
+  }
+}
+
+function closeDetail() {
+  if (!els.detailPanel || els.detailPanel.hidden) return;
+  els.detailPanel.classList.remove("detail--open");
+  state.detailId = null;
+  clearTimeout(_detailCloseTimer);
+  _detailCloseTimer = setTimeout(() => (els.detailPanel.hidden = true), 280);
+}
+
+function syncDetailCheck(t) {
+  if (els.detailCheck) els.detailCheck.dataset.done = String(!!t.done);
+}
+
+function buildDetailBody(t) {
+  const folderOptions = [
+    `<option value="inbox"${!t.projectId || t.projectId === "inbox" ? " selected" : ""}>Inbox</option>`,
+    ...state.projects.map((p) => `<option value="${p.id}"${t.projectId === p.id ? " selected" : ""}>${escapeHtml(p.name)}</option>`),
+  ].join("");
+  const prio = (v, label) => `<option value="${v}"${(t.priority || "") === v ? " selected" : ""}>${label}</option>`;
+  els.detailScroll.innerHTML = `
+    <textarea id="detailTitleInput" class="detail__title" rows="1" aria-label="Task title" placeholder="Task title">${escapeHtml(t.title)}</textarea>
+    <div class="dgrid">
+      <label class="dfield"><span class="dfield__label">Folder</span>
+        <select class="dfield__control" id="dFolder">${folderOptions}</select></label>
+      <label class="dfield"><span class="dfield__label">Due</span>
+        <input class="dfield__control" id="dDue" type="date" value="${t.due || ""}" /></label>
+      <label class="dfield"><span class="dfield__label">Priority</span>
+        <select class="dfield__control" id="dPriority">${prio("", "—")}${prio("high", "High")}${prio("medium", "Medium")}${prio("low", "Low")}</select></label>
+      <label class="dfield"><span class="dfield__label">Reminder</span>
+        <input class="dfield__control" id="dRemind" type="datetime-local" value="${isoToLocalInput(t.remindAt)}" /></label>
+    </div>
+    <div class="dblock">
+      <span class="dfield__label">Tags</span>
+      <div class="dtags" id="dTags"></div>
+    </div>
+    <div class="dblock">
+      <div class="dsub__head"><span class="dfield__label">Subtasks</span><span class="dsub__meter" id="dSubMeter"></span></div>
+      <div class="dprogress" id="dProgress" hidden><span></span></div>
+      <ul class="dsub" id="dSubList"></ul>
+      <form class="dsub__add" id="dSubAdd" autocomplete="off">
+        <input id="dSubInput" type="text" placeholder="Add a step" aria-label="Add a subtask" />
+        <button type="submit" class="dsub__addbtn" aria-label="Add subtask">＋</button>
+      </form>
+    </div>`;
+
+  const ti = $("detailTitleInput");
+  ti.addEventListener("input", () => autoGrow(ti));
+  ti.addEventListener("change", () => {
+    const v = ti.value.trim();
+    if (v && v !== t.title) patchTask(t, { title: v });
+    else ti.value = t.title;
+  });
+  $("dFolder").addEventListener("change", (e) => {
+    patchTask(t, { projectId: e.target.value });
+    if (els.detailSpine) els.detailSpine.style.background = projectColor(e.target.value);
+  });
+  $("dDue").addEventListener("change", (e) => patchTask(t, { due: e.target.value || null }));
+  $("dPriority").addEventListener("change", (e) => patchTask(t, { priority: e.target.value || null }));
+  $("dRemind").addEventListener("change", (e) => patchTask(t, { remindAt: localInputToIso(e.target.value) }));
+
+  $("dSubAdd").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const inp = $("dSubInput");
+    const text = inp.value.trim();
+    if (!text) return;
+    patchTask(t, { subtasks: [...(t.subtasks || []), { text, done: false }] });
+    inp.value = "";
+    renderDetailSubtasks(t);
+    inp.focus();
+  });
+
+  renderDetailTags(t);
+  renderDetailSubtasks(t);
+}
+
+function renderDetailTags(t) {
+  const box = $("dTags");
+  if (!box) return;
+  const tags = Array.isArray(t.tags) ? t.tags : [];
+  box.innerHTML = "";
+  for (const tag of tags) {
+    const chip = document.createElement("span");
+    chip.className = "dtag";
+    chip.style.setProperty("--tc", `var(--tagc-${tagHue(tag)})`);
+    chip.innerHTML = `<span>${escapeHtml(tag)}</span>`;
+    const x = document.createElement("button");
+    x.type = "button";
+    x.className = "dtag__x";
+    x.setAttribute("aria-label", `Remove tag ${tag}`);
+    x.textContent = "✕";
+    x.addEventListener("click", () => {
+      patchTask(t, { tags: tags.filter((g) => g !== tag) });
+      renderDetailTags(t);
+    });
+    chip.appendChild(x);
+    box.appendChild(chip);
+  }
+  if (tags.length < TAG_LIMIT) {
+    const form = document.createElement("form");
+    form.className = "dtag__add";
+    form.autocomplete = "off";
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.maxLength = 24;
+    inp.placeholder = tags.length ? "Add" : "Add a tag";
+    inp.setAttribute("aria-label", "Add a tag");
+    form.appendChild(inp);
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const v = inp.value.trim();
+      if (!v) return;
+      if (tags.some((g) => g.toLowerCase() === v.toLowerCase())) {
+        inp.value = "";
+        return;
+      }
+      patchTask(t, { tags: [...tags, v] });
+      renderDetailTags(t);
+      $("dTags")?.querySelector(".dtag__add input")?.focus();
+    });
+    box.appendChild(form);
+  }
+}
+
+function renderDetailSubtasks(t) {
+  const list = $("dSubList");
+  if (!list) return;
+  const subs = Array.isArray(t.subtasks) ? t.subtasks : [];
+  const done = subs.filter((s) => s.done).length;
+  const meter = $("dSubMeter");
+  const prog = $("dProgress");
+  if (meter) meter.textContent = subs.length ? `${done}/${subs.length}` : "";
+  if (prog) {
+    prog.hidden = !subs.length;
+    const bar = prog.querySelector("span");
+    if (bar) bar.style.transform = `scaleX(${subs.length ? done / subs.length : 0})`;
+  }
+  list.innerHTML = "";
+  subs.forEach((s, i) => {
+    const li = document.createElement("li");
+    li.className = "dsubitem";
+    li.dataset.done = String(s.done);
+
+    const box = document.createElement("button");
+    box.type = "button";
+    box.className = "dsubitem__box";
+    box.setAttribute("aria-label", s.done ? "Mark step not done" : "Mark step done");
+    box.addEventListener("click", () => {
+      patchTask(t, { subtasks: subs.map((x, j) => (j === i ? { ...x, done: !x.done } : x)) });
+      renderDetailSubtasks(t);
+    });
+
+    const txt = document.createElement("input");
+    txt.className = "dsubitem__text";
+    txt.value = s.text;
+    txt.setAttribute("aria-label", "Subtask");
+    txt.addEventListener("change", () => {
+      const v = txt.value.trim();
+      const next = v ? subs.map((x, j) => (j === i ? { ...x, text: v } : x)) : subs.filter((_, j) => j !== i);
+      patchTask(t, { subtasks: next });
+      if (!v) renderDetailSubtasks(t);
+    });
+
+    const rm = document.createElement("button");
+    rm.type = "button";
+    rm.className = "dsubitem__rm";
+    rm.setAttribute("aria-label", "Remove step");
+    rm.textContent = "✕";
+    rm.addEventListener("click", () => {
+      patchTask(t, { subtasks: subs.filter((_, j) => j !== i) });
+      renderDetailSubtasks(t);
+    });
+
+    li.append(box, txt, rm);
+    list.appendChild(li);
+  });
 }
 
 // ---------- task mutations ----------
@@ -1585,6 +1806,38 @@ document.addEventListener("keydown", (e) => {
 });
 // Tray "Settings" item (widget) routes here via tauri-bridge.
 window.addEventListener("ramble:open-settings", openSettings);
+
+// ---------- detail panel wiring ----------
+const detailTask = () => state.tasks.find((x) => x.id === state.detailId);
+if (els.detailPanel) {
+  els.detailPanel.addEventListener("click", (e) => {
+    if (e.target.closest("[data-detail-close]")) closeDetail();
+  });
+}
+if (els.detailCheck) {
+  els.detailCheck.addEventListener("click", () => {
+    const t = detailTask();
+    if (!t) return;
+    patchTask(t, { done: !t.done });
+    syncDetailCheck(t);
+  });
+}
+if (els.detailDelete) {
+  els.detailDelete.addEventListener("click", async () => {
+    const t = detailTask();
+    if (!t) return;
+    if (!confirm(`Delete "${t.title}"? This can't be undone.`)) return;
+    closeDetail();
+    await fetch(`/api/tasks/${t.id}`, { method: "DELETE" });
+    await refresh();
+  });
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && els.detailPanel && !els.detailPanel.hidden && settingsModal.hidden) {
+    e.stopPropagation();
+    closeDetail();
+  }
+});
 
 // ---------- custom summon hotkey ----------
 

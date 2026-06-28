@@ -47,6 +47,22 @@ const GROQ_MODEL = "whisper-large-v3-turbo";
 const INBOX = { id: "inbox", name: "Inbox", color: "#6f6883" };
 const PROJECT_COLORS = ["#9b7cff", "#5fe0d0", "#ffb454", "#ff6b9d", "#5fd3a3", "#7c8cff", "#ff8a5b"];
 const MAX_CORRECTIONS = 60;
+const MAX_TAGS = 4;
+
+// Tags: 0-N short, lowercase, de-duped context labels. Defensive against messy model output.
+function normalizeTags(tags) {
+  if (!Array.isArray(tags)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of tags) {
+    const t = String(raw || "").trim().toLowerCase().replace(/\s+/g, " ").slice(0, 24);
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+    if (out.length >= MAX_TAGS) break;
+  }
+  return out;
+}
 
 const app = express();
 // The widget's frontend is served from tauri:// and calls this server cross-origin, so
@@ -179,6 +195,7 @@ For each task you extract, infer:
 - projectId: the best-fit existing project id, or "inbox". If it clearly belongs to a NEW project not listed, set projectId to null and set suggestedProject to a short project name.
 - suggestedProject: string or null (only when proposing a brand-new project).
 - subtasks: array of short steps ONLY if the task is genuinely large/multi-step; else [].
+- tags: array of 0-3 short, reusable, lowercase context labels (e.g. "call", "email", "errand", "design", "finance", "health"). Tags are the KIND of action or context, orthogonal to the project/folder. Omit vague or one-off labels — prefer [] over a weak tag. Reuse the same wording across tasks so labels group well.
 
 Then add adaptive follow-up questions. Be CONSERVATIVE — most tasks need ZERO questions. Ask at most ONE question per task, on the single most useful gap, and only when you are genuinely unsure and it matters:
 - "project": ONLY when you are proposing a brand-NEW project (you set projectId to null and suggestedProject to a name). Ask the user to confirm creating it. Options = [the suggestedProject name, "Inbox"]. When a task fits an EXISTING project, file it silently — NEVER ask a project question in that case.
@@ -188,7 +205,7 @@ Then add adaptive follow-up questions. Be CONSERVATIVE — most tasks need ZERO 
 Never ask just to confirm something you already inferred well. Max 3 questions total across all tasks — EXCEPT new-project confirmations, which you should always ask and which do NOT count toward that limit.${learned}
 
 Return STRICT JSON:
-{"tasks":[{"title":"...","due":null,"priority":null,"projectId":"inbox","suggestedProject":null,"subtasks":[],"questions":[{"field":"project|due|priority|breakdown","text":"...","options":["..."]}]}]}
+{"tasks":[{"title":"...","due":null,"priority":null,"projectId":"inbox","suggestedProject":null,"subtasks":[],"tags":[],"questions":[{"field":"project|due|priority|breakdown","text":"...","options":["..."]}]}]}
 If there is no real task, return {"tasks":[]}.`;
 
 const finalizeSystem = (ctx) => `You are Ramble. Today is ${ctx.weekday}, ${ctx.iso}. Resolve relative dates to YYYY-MM-DD.
@@ -282,6 +299,7 @@ app.post("/api/structure", async (req, res) => {
       projectId: t.projectId || (t.suggestedProject ? null : "inbox"),
       suggestedProject: t.suggestedProject || null,
       subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
+      tags: normalizeTags(t.tags),
       questions: (Array.isArray(t.questions) ? t.questions : []).map((q) => ({
         id: randomUUID(),
         field: q.field,
@@ -360,6 +378,7 @@ app.post("/api/finalize", async (req, res) => {
       subtasks: (Array.isArray(t.subtasks) ? t.subtasks : []).map((s) =>
         typeof s === "string" ? { text: s, done: false } : { text: s.text, done: Boolean(s.done) }
       ),
+      tags: normalizeTags(t.tags),
       done: false,
       remindAt: null,
       remindFiredAt: null,
@@ -417,6 +436,29 @@ app.patch("/api/tasks/:id", async (req, res) => {
   }
   if (typeof b.subtaskIndex === "number" && task.subtasks[b.subtaskIndex]) {
     task.subtasks[b.subtaskIndex].done = Boolean(b.subtaskDone);
+  }
+  // Full replacement of the subtasks checklist (add/edit/remove from the detail panel).
+  if (Array.isArray(b.subtasks)) {
+    task.subtasks = b.subtasks
+      .map((s) => ({ text: String(s && s.text ? s.text : "").trim(), done: Boolean(s && s.done) }))
+      .filter((s) => s.text);
+  }
+  // Tags (ADR-0008): a normalized, de-duped list of short labels. Editing them feeds the
+  // same correction memory as project/priority so the Brain can learn the user's filing.
+  if (Array.isArray(b.tags)) {
+    const seen = new Set();
+    const next = [];
+    for (const raw of b.tags) {
+      const tag = String(raw || "").trim();
+      const key = tag.toLowerCase();
+      if (!tag || seen.has(key)) continue;
+      seen.add(key);
+      next.push(tag);
+      if (next.length >= MAX_TAGS) break;
+    }
+    const before = (task.tags || []).join("");
+    task.tags = next;
+    if (next.join("") !== before && next.length) logCorrection("tags", next.join(", "));
   }
 
   await Promise.all([saveTasks(tasks), saveMemory(memory)]);

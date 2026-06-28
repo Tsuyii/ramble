@@ -10,6 +10,14 @@ data/
 
 # Build output
 dist/
+
+# Playwright / E2E artifacts
+test-results/
+playwright-report/
+.playwright-mcp/
+blob-report/
+playwright/.cache/
+dash-*.png
 src-tauri/target/
 src-tauri/gen/schemas/
 src-tauri/binaries/
