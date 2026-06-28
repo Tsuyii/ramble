@@ -14,8 +14,14 @@
   window.addEventListener("ramble:recording", (e) => {
     R.invoke("set_recording", { recording: Boolean(e.detail) });
   });
+  // The frontend emits semantic modes ("orb" | "capture" | "panel"). Per ADR-0007 the
+  // expanded surface IS the dashboard, so map "panel" → the shell's "dashboard" window mode
+  // (drops always-on-top, joins the taskbar, centres at 1100×720). The orb morphs up into it,
+  // and collapse emits "orb" — which restores the floating chrome. "capture" passes through.
+  const MODE_MAP = { panel: "dashboard" };
   window.addEventListener("ramble:mode", (e) => {
-    R.invoke("set_widget_mode", { mode: String(e.detail || "orb") });
+    const requested = String(e.detail || "orb");
+    R.invoke("set_widget_mode", { mode: MODE_MAP[requested] || requested });
   });
   window.addEventListener("ramble:dragging", (e) => {
     R.invoke("set_dragging", { dragging: Boolean(e.detail) });

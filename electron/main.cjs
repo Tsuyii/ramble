@@ -1,7 +1,9 @@
 // Ramble — Electron shell (replaces the Tauri shell, ADR-0006).
-// One frameless, transparent, always-on-top window that morphs across orb / capture /
-// panel sizes (the morph identity, ADR-0005/0007). server.js is forked with Electron's
-// bundled Node — no separate server binary, no rewrite of the Express layer.
+// One frameless, transparent window that morphs across orb / capture / panel sizes while
+// floating (always-on-top), and UP into a full `dashboard` that drops always-on-top and
+// becomes a normal taskbar window (the morph identity, ADR-0005/0007). Switching modes flips
+// the window chrome; returning to the orb restores the floating chrome. server.js is forked
+// with Electron's bundled Node — no separate server binary, no rewrite of the Express layer.
 const {
   app,
   BrowserWindow,
@@ -55,6 +57,7 @@ let currentAccel = null;
 let recording = false; // while true, blur must NOT collapse (don't dismiss mid-ramble)
 let dragging = false; // while true, blur is the OS move loop — don't collapse
 let widgetAnchor = null; // {x,y} orb centre, so it returns to its spot after capture/panel
+let currentMode = "orb"; // "orb" | "capture" | "panel" | "dashboard"; gates blur-collapse
 
 // ---------- backend (forked server.js) ----------
 
@@ -118,6 +121,7 @@ async function startBackend() {
 
 function setWidgetMode(mode) {
   if (!win) return;
+  currentMode = mode;
   const [w, h] = SIZES[mode] || SIZES.orb;
   const b = win.getBounds();
   const cur = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
@@ -288,7 +292,10 @@ function createWindow() {
 
   // Blur → collapse the panel back to the orb, but NOT mid-recording and NOT while the
   // OS move loop has stolen focus (dragging). Mirrors on_window_event in lib.rs.
+  // The dashboard is a normal taskbar window (ADR-0007) — clicking another app must NOT
+  // dismiss it; only the floating orb/capture/panel chrome collapses on blur.
   win.on("blur", () => {
+    if (currentMode === "dashboard") return;
     if (!recording && !dragging) win.webContents.send("ramble:collapse");
   });
   win.on("focus", () => {
