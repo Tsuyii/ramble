@@ -150,13 +150,10 @@ const projectColor = (id) => (id === "inbox" || !id ? "var(--text-faint)" : stat
 els.orb.addEventListener("click", () => (recording ? stopRecording() : startRecording()));
 
 // ---------- widget orb mode (desktop shell only) ----------
-// Neutral shell seam: request/response goes through `shell.invoke`, populated by whichever
-// shell is present. Electron exposes window.ramble; Tauri exposes window.__TAURI__. In a
-// plain browser both are undefined → shell is null → IS_WIDGET is false. See public/AGENTS.md.
-const shell =
-  window.ramble ||
-  (window.__TAURI__ && { invoke: (cmd, args) => window.__TAURI__.core.invoke(cmd, args) }) ||
-  null;
+// Neutral shell seam: request/response goes through `shell.invoke`, exposed by the Electron
+// preload as window.ramble. In a plain browser it's undefined → shell is null → IS_WIDGET is
+// false and the app runs full-page. See public/AGENTS.md.
+const shell = window.ramble || null;
 const IS_WIDGET = Boolean(shell);
 
 // Switch between the collapsed orb and the expanded panel; the shell resizes the window.

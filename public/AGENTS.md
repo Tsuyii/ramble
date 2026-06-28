@@ -24,9 +24,13 @@ in the desktop shell's renderer. No framework, no build step.
   - app.js **listens for**: `ramble:hotkey`, `ramble:collapse`, `ramble:open-settings`,
     `ramble:start-recording`.
   - In a plain browser the bridge is a no-op (events go nowhere) and the app runs full-page.
-  - **Electron migration:** add `electron-bridge.js` mirroring `tauri-bridge.js` exactly — same
-    events, wired through the preload `contextBridge` API instead of `window.__TAURI__`. `app.js`
-    stays untouched. Remove `tauri-bridge.js` once Electron is proven (ADR-0006).
+  - The active bridge is `electron-bridge.js` (talks to the preload's `window.ramble`). The old
+    `tauri-bridge.js` and the `window.__TAURI__` fallback were removed (ADR-0006). `app.js` reads
+    the shell via `const shell = window.ramble || null`.
+- **Window drag = CSS, not Tauri.** Elements marked `[data-tauri-drag-region]` (a kept hook name)
+  move the frameless Electron window via `-webkit-app-region: drag` (defined at the end of
+  `styles.css`); buttons/inputs are `no-drag`. `app.js` only emits `ramble:dragging` as a blur
+  guard — it does NOT move the window. Don't remove the drag CSS or dragging breaks.
 - **Widget mode flag.** The bridge adds `body.widget` before `app.js` runs so it renders as the
   orb, not a flash of the full panel. Preserve this.
 - **Feature-detect, never assume.** Web Speech / mic / platform APIs are detected at runtime

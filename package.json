@@ -9,9 +9,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "electron": "electron .",
-    "electron:build": "electron-builder",
-    "tauri": "tauri",
-    "bundle:server": "esbuild server.js --bundle --platform=node --format=cjs --outfile=dist/server.cjs"
+    "electron:build": "electron-builder"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
@@ -19,11 +17,8 @@
     "multer": "^2.0.1"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.3",
-    "@yao-pkg/pkg": "^6.20.0",
     "electron": "^33.4.11",
-    "electron-builder": "^25.1.8",
-    "esbuild": "^0.28.1"
+    "electron-builder": "^25.1.8"
   },
   "build": {
     "appId": "earth.ramble.app",
@@ -32,16 +27,14 @@
     "files": [
       "electron/**",
       "server.js",
-      "public/**",
-      "src-tauri/icons/32x32.png",
-      "!src-tauri/target/**"
+      "public/**"
     ],
     "extraMetadata": {
       "type": "module"
     },
     "win": {
       "target": "nsis",
-      "icon": "src-tauri/icons/icon.ico"
+      "icon": "build/icon.ico"
     }
   }
 }

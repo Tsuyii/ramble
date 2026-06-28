@@ -11,7 +11,9 @@ and provides the orb↔panel morph, global hotkey, tray, and OS notifications.
 - `main.cjs` — Electron main process. Forks `server.js`, manages the window + morph + tray +
   global shortcut, and serves the IPC command surface.
 - `preload.cjs` — exposes the neutral `window.ramble` API (`invoke`, `on`) via `contextBridge`.
-- Page-side bridge lives in `public/electron-bridge.js` (owned by `public/AGENTS.md`).
+- `tray.png` — the tray icon (read at runtime via `path.join(__dirname, "tray.png")`).
+- Page-side bridge lives in `public/electron-bridge.js` (owned by `public/AGENTS.md`). Window
+  dragging is CSS (`-webkit-app-region`) in `public/styles.css`, not a main-process concern.
 
 ## Local Contracts
 - **CommonJS on purpose.** Files are `.cjs` so they stay CommonJS even though the repo root is

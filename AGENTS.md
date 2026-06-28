@@ -31,10 +31,10 @@ The browser app and the widget run the **same** frontend and server code.
   a spawned sidecar binary.
 - `public/` — vanilla JS/CSS/HTML frontend served at `127.0.0.1:5179`. No build step, no
   framework. The dashboard surfaces live here. See `public/AGENTS.md`.
-- `electron/` — *(created in Phase 0)* the Electron main + preload: orb window (frameless,
-  transparent, always-on-top, drag), dashboard window (normal), the morph, global hotkey,
-  tray. Replaces `src-tauri/`. Will own `electron/AGENTS.md`.
-- `src-tauri/` — **being retired** (ADR-0006). Do not extend; remove once Electron is proven.
+- `electron/` — the Electron main + preload + tray icon: orb window (frameless, transparent,
+  always-on-top, drag), dashboard window (normal), the morph, global hotkey, tray. See
+  `electron/AGENTS.md`. (Tauri's `src-tauri/` shell was removed once Electron was proven, ADR-0006.)
+- `build/` — packaging resources (`icon.ico` = the app/exe icon for electron-builder).
 - `data/` — local JSON state (git-ignored).
 
 ## Local Contracts

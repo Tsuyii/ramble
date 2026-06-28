@@ -214,7 +214,7 @@ ipcMain.handle("ramble:invoke", (_e, cmd, args = {}) => {
 // ---------- tray ----------
 
 function buildTray() {
-  const iconPath = path.join(__dirname, "..", "src-tauri", "icons", "32x32.png");
+  const iconPath = path.join(__dirname, "tray.png");
   const icon = fs.existsSync(iconPath)
     ? nativeImage.createFromPath(iconPath)
     : nativeImage.createEmpty();

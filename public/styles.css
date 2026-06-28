@@ -2529,3 +2529,21 @@ body.widget.panel .widget-shell {
 .hotkey__reset:hover {
   color: var(--text);
 }
+
+/* ---------- Electron window drag ----------
+   Frameless Electron widget: elements marked [data-tauri-drag-region] move the OS window
+   via -webkit-app-region (Electron's equivalent of Tauri's native drag region). Interactive
+   controls opt out so taps/clicks still register. No-op in a plain browser. */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+}
+button,
+a,
+input,
+textarea,
+select,
+label,
+[role="button"],
+[contenteditable] {
+  -webkit-app-region: no-drag;
+}
