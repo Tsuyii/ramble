@@ -36,8 +36,8 @@ The point of this build is (a) it's **ours / local**, (b) it runs on **DeepSeek*
   hotkey. The browser app and the widget run the **same** frontend + server code.
 - **Orb** — the widget's always-visible resting form: a small **solid** circle that follows
   the active theme (surface + accent) with an **auto-contrast scrim** on light themes.
-  Tapping its **body** records **in place** (no panel). **Launches centered**, draggable.
-  See [[ADR-0005-widget-interaction-model]].
+  Tapping its **body** records **in place** (no panel). **Rests bottom-right** (out of the
+  way), draggable anywhere. See [[ADR-0005-widget-interaction-model]].
 - **Grip** — the drag handle on the orb's top edge; the **only** place you can drag from.
   Body taps never move the orb (movement threshold disambiguates).
 - **Chevron** — the small affordance on the orb's edge that opens the **Panel**; the only
@@ -45,8 +45,8 @@ The point of this build is (a) it's **ours / local**, (b) it runs on **DeepSeek*
 - **Bubble** — a transient speech bubble next to the orb during a ramble: streams the live
   caption → shows the transcript while sorting → "✓ Sorted N tasks" → auto-dismisses.
   Smart-placed to always fit on screen. Quick ramble = orb + bubble only; panel never opens.
-- **Panel** — the full task-list app. **Grows out of the orb** (morph) and shrinks back into
-  it on close. **Launches centered**; closing remembers position. Opened only via the chevron.
+- **Panel** — the full task-list app. Opens **centered on screen**; closing returns to the
+  orb in its corner. Opened only via the chevron.
 - **Morph** — the orb⟷panel transition; grows from the orb's current position. Deliberate
   ("make it last longer"); exact easing/timing refined later.
 - **Sidecar** — the bundled Node runtime + `server.js` that Tauri spawns to hold the keys

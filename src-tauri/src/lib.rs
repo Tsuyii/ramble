@@ -132,9 +132,11 @@ fn notify(app: AppHandle, title: String, body: String) {
 }
 
 const MARGIN: i32 = 24;
+const TASKBAR_ALLOWANCE: f64 = 48.0;
 
-// The widget is ONE window that morphs across three sizes. We keep the window's CENTRE
-// fixed across resizes so the centred orb never jumps and the panel grows out of it.
+// The widget is ONE window that morphs across three sizes. The RESTING ORB lives in a
+// corner (out of the way — a centred always-on-top orb covers whatever you're looking at).
+// The capture window grows around the orb in place; the PANEL opens centred on screen.
 // The orb visual is 88px; the orb window is larger so its glow fades inside transparent
 // space instead of being clipped. See ADR-0005.
 const ORB_SIZE: f64 = 140.0; // resting orb (+ grip/chevron + glow room)
@@ -143,55 +145,63 @@ const CAP_H: f64 = 360.0;
 const PANEL_W: f64 = 400.0; // full task-list panel
 const PANEL_H: f64 = 600.0;
 
-/// Resize the widget between `orb` / `capture` / `panel`, keeping the window CENTRE fixed so
-/// the centred orb stays put and the panel grows out of it. Clamps to the monitor so the
-/// panel never spills off-screen. The frontend calls this whenever it changes mode.
+/// Resize the widget between `orb` / `capture` / `panel`.
+/// - `orb`: return to the orb's stored resting spot (its corner, or wherever it was dragged).
+/// - `capture`: grow around the orb in place (bubble above it) — the orb does not move.
+/// - `panel`: open centred on screen, clamped to fit. The orb's resting spot is preserved so
+///   closing the panel returns the orb to its corner.
 #[tauri::command]
 fn set_widget_mode(window: WebviewWindow, anchor: tauri::State<WidgetAnchor>, mode: String) {
-    let (w, h, is_orb) = match mode.as_str() {
-        "panel" => (PANEL_W, PANEL_H, false),
-        "capture" => (CAP_W, CAP_H, false),
-        _ => (ORB_SIZE, ORB_SIZE, true),
+    let (w, h) = match mode.as_str() {
+        "panel" => (PANEL_W, PANEL_H),
+        "capture" => (CAP_W, CAP_H),
+        _ => (ORB_SIZE, ORB_SIZE),
     };
-    // Current window centre (physical px).
+    // Current window centre (physical px) — where the orb sits right now.
     let cur = window.outer_position().ok().and_then(|p| {
         window
             .outer_size()
             .ok()
             .map(|s| (p.x + s.width as i32 / 2, p.y + s.height as i32 / 2))
     });
-
-    // Pick the centre to grow/shrink around. Leaving the orb: capture where it lives now
-    // (handles a freshly dragged orb). Returning to the orb: restore that exact spot.
-    let target = if is_orb {
-        anchor.0.lock().ok().and_then(|g| *g).or(cur)
-    } else {
+    // Leaving the orb: remember where it lives so we can restore it on collapse.
+    if mode != "orb" {
         if let (Ok(mut g), Some(c)) = (anchor.0.lock(), cur) {
             *g = Some(c);
         }
-        cur
-    };
+    }
 
     let _ = window.set_size(LogicalSize::new(w, h));
-    if let (Some((cx, cy)), Ok(size)) = (target, window.outer_size()) {
-        let mut x = cx - size.width as i32 / 2;
-        let mut y = cy - size.height as i32 / 2;
-        // Only the panel must fully fit on-screen. The orb and the (transparent) capture
-        // window stay put even near an edge, so the orb never jumps while recording.
-        if mode == "panel" {
-            if let Ok(Some(mon)) = window.current_monitor() {
-                let scr = mon.size();
-                let m = (MARGIN as f64 * mon.scale_factor()) as i32;
-                x = x.clamp(m, (scr.width as i32 - size.width as i32 - m).max(m));
-                y = y.clamp(m, (scr.height as i32 - size.height as i32 - m).max(m));
-            }
+    let Ok(size) = window.outer_size() else { return };
+    let x;
+    let y;
+
+    if mode == "panel" {
+        // Centre the panel on the monitor (independent of the orb's corner).
+        if let Ok(Some(mon)) = window.current_monitor() {
+            let scr = mon.size();
+            x = (scr.width as i32 - size.width as i32) / 2;
+            y = (scr.height as i32 - size.height as i32) / 2;
+        } else {
+            return;
         }
-        let _ = window.set_position(PhysicalPosition::new(x, y));
+    } else {
+        // orb / capture: grow or shrink around the orb's resting centre (no clamp, so the
+        // orb stays exactly put even near a screen edge).
+        let (cx, cy) = if mode == "orb" {
+            anchor.0.lock().ok().and_then(|g| *g).or(cur)
+        } else {
+            cur
+        }
+        .unwrap_or((0, 0));
+        x = cx - size.width as i32 / 2;
+        y = cy - size.height as i32 / 2;
     }
+    let _ = window.set_position(PhysicalPosition::new(x.max(0), y.max(0)));
 }
 
-/// Centre the widget on the current monitor (initial placement — the widget launches centred).
-fn position_center(window: &WebviewWindow) {
+/// Park the resting orb in the bottom-right corner, above the taskbar (initial placement).
+fn position_orb_default(window: &WebviewWindow) {
     let Ok(Some(monitor)) = window.current_monitor() else {
         return;
     };
@@ -199,8 +209,11 @@ fn position_center(window: &WebviewWindow) {
         return;
     };
     let screen = monitor.size();
-    let x = (screen.width as i32 - size.width as i32) / 2;
-    let y = (screen.height as i32 - size.height as i32) / 2;
+    let scale = monitor.scale_factor();
+    let margin = (MARGIN as f64 * scale) as i32;
+    let taskbar = (TASKBAR_ALLOWANCE * scale) as i32;
+    let x = screen.width as i32 - size.width as i32 - margin;
+    let y = screen.height as i32 - size.height as i32 - margin - taskbar;
     let _ = window.set_position(PhysicalPosition::new(x.max(0), y.max(0)));
 }
 
@@ -441,9 +454,9 @@ pub fn run() {
                 start_backend(app.handle());
             }
 
-            // ---- Initial placement: launch centred (ADR-0005) ----
+            // ---- Initial placement: park the orb bottom-right, out of the way (ADR-0005) ----
             if let Some(window) = app.get_webview_window("main") {
-                position_center(&window);
+                position_orb_default(&window);
             }
 
             Ok(())

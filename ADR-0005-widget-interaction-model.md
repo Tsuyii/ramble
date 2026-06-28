@@ -20,9 +20,12 @@ A **single window that morphs between orb and panel** (not two windows), driven 
    separates drag from a body tap.
 3. **Chevron → open the Panel**, which **grows from the orb** (morph) and shrinks back on
    close. Deliberately slow ("make it last longer"); precise motion tuning deferred.
-4. **Launches centered.** Resizing (orb → bubble-capture → panel) is **anchored to the orb's
-   screen position** (bottom-center) so the orb never jumps — the panel grows out of it.
-   Closing remembers the position in-session.
+4. **Orb rests in a corner; the panel opens centered.** The resting orb parks **bottom-right**
+   (out of the way — a centered always-on-top orb covers whatever you're looking at, e.g. a
+   video). The capture/bubble grows around the orb **in place**; the **panel opens centered on
+   screen**, and closing it returns the orb to its corner (the orb's resting spot is preserved
+   across the panel). _(Revised 2026-06-28: the orb originally launched centered, which blocked
+   on-screen content — corrected to a corner rest.)_
 5. **Solid orb that follows the theme** (surface + accent), with an **auto-contrast scrim**
    on light themes (Paper, Cobalt) so it never washes out over a light wallpaper.
 
