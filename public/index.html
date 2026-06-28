@@ -23,16 +23,25 @@
   <body>
     <div class="grain" aria-hidden="true"></div>
 
-    <!-- WIDGET ORB — collapsed state (Tauri widget only) -->
-    <button class="widget-orb" id="widgetOrb" type="button" aria-label="Open Ramble and start recording">
-      <span class="widget-orb__pulse" aria-hidden="true"></span>
-      <span class="widget-orb__core">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z" />
-          <path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" />
-        </svg>
-      </span>
-    </button>
+    <!-- WIDGET ORB — collapsed floating state (Tauri widget only).
+         Tap body = record in place · drag the grip = move · chevron = open the panel. -->
+    <div class="widget-shell" id="widgetShell" aria-hidden="true">
+      <div class="orb-bubble" id="orbBubble" hidden></div>
+      <span class="orb-grip" id="orbGrip" data-tauri-drag-region title="Drag to move">⠿</span>
+      <button class="widget-orb" id="widgetOrb" type="button" aria-label="Tap to ramble">
+        <span class="widget-orb__pulse" aria-hidden="true"></span>
+        <span class="widget-orb__core">
+          <svg class="widget-orb__mic" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z" />
+            <path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" />
+          </svg>
+          <span class="widget-orb__bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        </span>
+      </button>
+      <button class="orb-chev" id="orbChev" type="button" aria-label="Open Ramble" title="Open Ramble">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+      </button>
+    </div>
 
     <header class="topbar">
       <div class="wordmark">

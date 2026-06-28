@@ -110,30 +110,50 @@ fn notify(app: AppHandle, title: String, body: String) {
 }
 
 const MARGIN: i32 = 24;
-const TASKBAR_ALLOWANCE: f64 = 48.0;
 
-// Orb (collapsed) vs panel (expanded) window sizes.
-// The orb visual is 88px; the window is larger so the orb's glow can fade out
-// fully inside transparent space instead of being clipped to the window rect.
-const ORB_SIZE: f64 = 140.0;
-const PANEL_W: f64 = 400.0;
+// The widget is ONE window that morphs across three sizes. We keep the window's CENTRE
+// fixed across resizes so the centred orb never jumps and the panel grows out of it.
+// The orb visual is 88px; the orb window is larger so its glow fades inside transparent
+// space instead of being clipped. See ADR-0005.
+const ORB_SIZE: f64 = 140.0; // resting orb (+ grip/chevron + glow room)
+const CAP_W: f64 = 340.0; // recording: the bubble floats above the orb
+const CAP_H: f64 = 360.0;
+const PANEL_W: f64 = 400.0; // full task-list panel
 const PANEL_H: f64 = 600.0;
 
-/// Resize between the small orb and the full panel, keeping it pinned bottom-right.
-/// Called by the frontend when it switches modes.
+/// Resize the widget between `orb` / `capture` / `panel`, keeping the window CENTRE fixed so
+/// the centred orb stays put and the panel grows out of it. Clamps to the monitor so the
+/// panel never spills off-screen. The frontend calls this whenever it changes mode.
 #[tauri::command]
-fn set_expanded(window: WebviewWindow, expanded: bool) {
-    let size = if expanded {
-        LogicalSize::new(PANEL_W, PANEL_H)
-    } else {
-        LogicalSize::new(ORB_SIZE, ORB_SIZE)
+fn set_widget_mode(window: WebviewWindow, mode: String) {
+    let (w, h) = match mode.as_str() {
+        "panel" => (PANEL_W, PANEL_H),
+        "capture" => (CAP_W, CAP_H),
+        _ => (ORB_SIZE, ORB_SIZE),
     };
-    let _ = window.set_size(size);
-    position_bottom_right(&window);
+    // Remember the centre (physical px) before resizing.
+    let centre = window.outer_position().ok().and_then(|p| {
+        window
+            .outer_size()
+            .ok()
+            .map(|s| (p.x + s.width as i32 / 2, p.y + s.height as i32 / 2))
+    });
+    let _ = window.set_size(LogicalSize::new(w, h));
+    if let (Some((cx, cy)), Ok(size)) = (centre, window.outer_size()) {
+        let mut x = cx - size.width as i32 / 2;
+        let mut y = cy - size.height as i32 / 2;
+        if let Ok(Some(mon)) = window.current_monitor() {
+            let scr = mon.size();
+            let m = (MARGIN as f64 * mon.scale_factor()) as i32;
+            x = x.clamp(m, (scr.width as i32 - size.width as i32 - m).max(m));
+            y = y.clamp(m, (scr.height as i32 - size.height as i32 - m).max(m));
+        }
+        let _ = window.set_position(PhysicalPosition::new(x, y));
+    }
 }
 
-/// Pin the widget to the bottom-right of the current monitor, above the taskbar.
-fn position_bottom_right(window: &WebviewWindow) {
+/// Centre the widget on the current monitor (initial placement — the widget launches centred).
+fn position_center(window: &WebviewWindow) {
     let Ok(Some(monitor)) = window.current_monitor() else {
         return;
     };
@@ -141,18 +161,15 @@ fn position_bottom_right(window: &WebviewWindow) {
         return;
     };
     let screen = monitor.size();
-    let scale = monitor.scale_factor();
-    let margin = (MARGIN as f64 * scale) as i32;
-    let taskbar = (TASKBAR_ALLOWANCE * scale) as i32;
-    let x = screen.width as i32 - size.width as i32 - margin;
-    let y = screen.height as i32 - size.height as i32 - margin - taskbar;
+    let x = (screen.width as i32 - size.width as i32) / 2;
+    let y = (screen.height as i32 - size.height as i32) / 2;
     let _ = window.set_position(PhysicalPosition::new(x.max(0), y.max(0)));
 }
 
 fn show_and_record(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
-        position_bottom_right(&window);
+        // Show where the user left it (don't reposition); launch centring happens once at setup.
         let _ = window.set_focus();
         // Hotkey = "show + start recording" (locked decision). Frontend listens.
         let _ = window.emit("ramble:hotkey", ());
@@ -303,7 +320,7 @@ pub fn run() {
         .manage(CurrentShortcut::default())
         .invoke_handler(tauri::generate_handler![
             set_recording,
-            set_expanded,
+            set_widget_mode,
             get_api_port,
             set_global_shortcut,
             notify
@@ -383,9 +400,9 @@ pub fn run() {
                 start_backend(app.handle());
             }
 
-            // ---- Initial placement ----
+            // ---- Initial placement: launch centred (ADR-0005) ----
             if let Some(window) = app.get_webview_window("main") {
-                position_bottom_right(&window);
+                position_center(&window);
             }
 
             Ok(())

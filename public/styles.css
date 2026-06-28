@@ -1980,13 +1980,14 @@ body {
 /* ===== Widget (Tauri orb) ===== */
 
 /* In a plain browser none of this applies — the orb stays hidden. */
-.widget-orb {
+.widget-shell {
   display: none;
 }
 
 body.widget {
   background: transparent;
   overflow: hidden;
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* No visible scrollbars in the widget — still scrollable, just no browser bar. */
@@ -2012,7 +2013,16 @@ body.widget:not(.panel) .toast,
 body.widget:not(.panel) .notices {
   display: none !important;
 }
-body.widget:not(.panel) .widget-orb {
+body.widget:not(.panel) .widget-shell {
+  display: block;
+  position: fixed;
+  inset: 0;
+}
+
+/* The orb: a SOLID, theme-following disc (matches the panel surface), centred in the
+   window. Auto-contrast = a constant subtle dark scrim ring + strong drop shadow so it
+   reads on any wallpaper, especially light themes (ADR-0005). */
+.widget-orb {
   display: grid;
   place-items: center;
   position: fixed;
@@ -2023,29 +2033,33 @@ body.widget:not(.panel) .widget-orb {
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: radial-gradient(
-    circle at 34% 28%,
-    color-mix(in srgb, var(--accent) 65%, white) 0%,
-    var(--accent) 46%,
-    color-mix(in srgb, var(--accent) 72%, black) 100%
-  );
-  /* Soft, near-symmetric aura — small enough to fade out fully inside the
-     transparent window (140px) so it never gets clipped to a rectangle. */
+  background: linear-gradient(180deg, var(--surface-hi), var(--surface));
   box-shadow:
-    0 2px 18px 0 color-mix(in srgb, var(--accent) 55%, transparent),
-    inset 0 1px 1px rgba(255, 255, 255, 0.35);
+    0 12px 30px rgba(0, 0, 0, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.18),
+    0 0 0 1.5px rgba(0, 0, 0, 0.1),
+    inset 0 0 0 1px var(--border-soft);
   cursor: pointer;
   transition:
-    transform var(--duration-fast, 150ms) var(--ease),
-    box-shadow var(--duration-fast, 150ms) var(--ease);
+    transform 0.16s var(--ease),
+    box-shadow 0.2s var(--ease);
 }
-body.widget:not(.panel) .widget-orb:hover {
-  transform: scale(1.06);
-  box-shadow:
-    0 3px 22px 0 color-mix(in srgb, var(--accent) 72%, transparent),
-    inset 0 1px 1px rgba(255, 255, 255, 0.4);
+body.widget:not(.panel):not(.rec) .widget-orb {
+  animation: worbBreath 4s var(--ease) infinite;
 }
-body.widget:not(.panel) .widget-orb:active {
+@keyframes worbBreath {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+.widget-orb:hover {
+  transform: scale(1.05);
+}
+.widget-orb:active {
   transform: scale(0.97);
 }
 
@@ -2055,30 +2069,83 @@ body.widget:not(.panel) .widget-orb:active {
   display: grid;
   place-items: center;
 }
-.widget-orb__core svg {
-  width: 34px;
-  height: 34px;
+/* accent ring hugging the core */
+.widget-orb__core::before {
+  content: "";
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.widget-orb__mic {
+  width: 30px;
+  height: 30px;
   fill: none;
-  stroke: var(--on-accent);
+  stroke: var(--accent);
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* recording: swap mic → equalizer bars */
+.widget-orb__bars {
+  display: none;
+  gap: 3px;
+  align-items: flex-end;
+  height: 24px;
+}
+.widget-orb__bars i {
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  height: 7px;
+  animation: worbEq 0.8s var(--ease) infinite;
+}
+.widget-orb__bars i:nth-child(2) {
+  animation-delay: 0.12s;
+}
+.widget-orb__bars i:nth-child(3) {
+  animation-delay: 0.24s;
+}
+.widget-orb__bars i:nth-child(4) {
+  animation-delay: 0.36s;
+}
+.widget-orb__bars i:nth-child(5) {
+  animation-delay: 0.48s;
+}
+@keyframes worbEq {
+  0%,
+  100% {
+    height: 6px;
+  }
+  50% {
+    height: 22px;
+  }
+}
+body.widget.rec .widget-orb__mic {
+  display: none;
+}
+body.widget.rec .widget-orb__bars {
+  display: flex;
+}
+
 .widget-orb__pulse {
   position: absolute;
   inset: 0;
   border-radius: 50%;
   background: var(--accent);
-  opacity: 0.45;
+  opacity: 0;
+  pointer-events: none;
+}
+body.widget.rec .widget-orb__pulse {
   animation: orbPulse 2.6s var(--ease) infinite;
 }
 @keyframes orbPulse {
   0% {
     transform: scale(1);
-    opacity: 0.45;
+    opacity: 0.4;
   }
   70% {
-    transform: scale(1.55);
+    transform: scale(1.7);
     opacity: 0;
   }
   100% {
@@ -2086,7 +2153,136 @@ body.widget:not(.panel) .widget-orb:active {
   }
 }
 
-/* PANEL (expanded): show the full app inside a rounded floating card */
+/* grip (drag handle) — above the orb; the only place you can drag from */
+.orb-grip {
+  position: fixed;
+  left: 50%;
+  top: calc(50% - 64px);
+  transform: translateX(-50%);
+  font: 700 14px/1 var(--font-mono);
+  letter-spacing: -1px;
+  color: var(--text-faint);
+  cursor: grab;
+  user-select: none;
+  padding: 4px 10px;
+  opacity: 0;
+  transition: opacity 0.2s var(--ease);
+}
+.orb-grip:active {
+  cursor: grabbing;
+}
+.widget-shell:hover .orb-grip {
+  opacity: 0.65;
+}
+.orb-grip:hover {
+  opacity: 1;
+}
+
+/* chevron — right of the orb; opens the panel */
+.orb-chev {
+  position: fixed;
+  left: calc(50% + 42px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-hi);
+  color: var(--text-dim);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.25),
+    inset 0 0 0 1px var(--border-soft);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.2s var(--ease),
+    background 0.2s,
+    color 0.2s;
+}
+.orb-chev svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.widget-shell:hover .orb-chev {
+  opacity: 0.9;
+}
+.orb-chev:hover {
+  opacity: 1;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* bubble — above the orb; carries the ramble pipeline (live → transcript → ✓) */
+.orb-bubble {
+  position: fixed;
+  left: 50%;
+  top: calc(50% - 70px);
+  transform: translate(-50%, -100%) translateY(8px);
+  min-width: 150px;
+  max-width: 250px;
+  max-height: 168px;
+  overflow: hidden;
+  padding: 11px 14px;
+  border-radius: 15px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 1px var(--border-soft);
+  font-size: 13.5px;
+  line-height: 1.42;
+  text-align: left;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.24s var(--ease),
+    transform 0.34s var(--spring);
+}
+.orb-bubble.show {
+  opacity: 1;
+  transform: translate(-50%, -100%) translateY(0);
+}
+.orb-bubble::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 7px solid transparent;
+  border-top-color: var(--surface);
+}
+.orb-bubble .muted {
+  color: var(--text-faint);
+}
+.orb-bubble .done {
+  color: var(--accent-2);
+  font-weight: 600;
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+.orb-bubble .live::after {
+  content: "▍";
+  color: var(--accent);
+  animation: bcaret 1s steps(1) infinite;
+}
+@keyframes bcaret {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* PANEL (expanded): show the full app inside a rounded floating card.
+   The window resizes instantly (shell); the content grows in over ~0.5s so it reads as
+   the panel morphing out of the orb. Finer morph tuning is a follow-up (ADR-0005). */
 body.widget.panel {
   height: 100vh;
   border-radius: 18px;
@@ -2096,7 +2292,21 @@ body.widget.panel {
     radial-gradient(120% 80% at 50% -10%, var(--bg-tint) 0%, transparent 55%),
     var(--bg);
 }
-body.widget.panel .widget-orb {
+body.widget.panel .topbar,
+body.widget.panel .stage {
+  animation: panelGrow 0.5s var(--ease) both;
+}
+@keyframes panelGrow {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+body.widget.panel .widget-shell {
   display: none;
 }
 

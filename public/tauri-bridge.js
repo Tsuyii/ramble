@@ -17,9 +17,9 @@
     invoke("set_recording", { recording: Boolean(e.detail) }).catch(() => {});
   });
 
-  // Frontend asks the shell to resize between orb and panel.
-  window.addEventListener("ramble:want-expand", (e) => {
-    invoke("set_expanded", { expanded: Boolean(e.detail) }).catch(() => {});
+  // Frontend asks the shell to morph between orb / capture (recording) / panel.
+  window.addEventListener("ramble:mode", (e) => {
+    invoke("set_widget_mode", { mode: String(e.detail || "orb") }).catch(() => {});
   });
 
   // Global hotkey (Ctrl+Shift+Space) → show + start recording.

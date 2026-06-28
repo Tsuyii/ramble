@@ -36,6 +36,9 @@ const els = {
   tasksCount: $("tasksCount"),
   toast: $("toast"),
   noticeStack: $("noticeStack"),
+  orbBubble: $("orbBubble"),
+  orbChev: $("orbChev"),
+  widgetShell: $("widgetShell"),
 };
 
 const PRIO_COLOR = { high: "var(--p-high)", medium: "var(--p-med)", low: "var(--p-low)" };
@@ -83,6 +86,37 @@ function setOrbState(s) {
   els.orb.classList.remove("orb--pulse");
   void els.orb.offsetWidth;
   els.orb.classList.add("orb--pulse");
+
+  // In a collapsed in-place ramble, the bubble narrates the pipeline.
+  if (inPlace) {
+    if (s === "transcribing") setBubble('<span class="muted">Transcribing…</span>');
+    else if (s === "structuring") setBubble('<span class="muted">Sorting into tasks…</span>');
+  }
+}
+
+// ---------- in-place ramble + bubble ----------
+// `inPlace` = a quick ramble done from the collapsed orb (no panel). The bubble carries
+// the story; tap-body records, the pipeline auto-sorts, then the bubble shows the result
+// and dismisses. See ADR-0005.
+let inPlace = false;
+
+function setBubble(html) {
+  if (!els.orbBubble) return;
+  els.orbBubble.innerHTML = html;
+  els.orbBubble.hidden = false;
+  requestAnimationFrame(() => els.orbBubble.classList.add("show"));
+}
+function hideBubble() {
+  if (!els.orbBubble) return;
+  els.orbBubble.classList.remove("show");
+  setTimeout(() => (els.orbBubble.hidden = true), 240);
+}
+// Promote an in-place ramble to the full panel (e.g. follow-up questions need it).
+function promoteToPanel() {
+  if (!inPlace) return;
+  inPlace = false;
+  hideBubble();
+  setMode("panel");
 }
 
 function toast(msg, kind = "info") {
@@ -114,21 +148,48 @@ const IS_WIDGET = Boolean(window.__TAURI__);
 function setMode(mode) {
   const panel = mode === "panel";
   document.body.classList.toggle("panel", panel);
-  window.dispatchEvent(new CustomEvent("ramble:want-expand", { detail: panel }));
+  // mode is "orb" | "capture" | "panel"; the shell resizes the window to match.
+  window.dispatchEvent(new CustomEvent("ramble:mode", { detail: mode }));
+}
+
+// Quick ramble from the collapsed orb: grow the window to fit the bubble, then record.
+function startInPlaceRamble() {
+  inPlace = true;
+  setMode("capture");
+  setBubble('<span class="muted">Listening…</span>');
+  startRecording();
+}
+
+// Show a final bubble message for an in-place ramble, then dismiss + collapse to the orb.
+function endInPlace(html) {
+  setBubble(html);
+  clearTimeout(endInPlace._t);
+  endInPlace._t = setTimeout(() => {
+    hideBubble();
+    inPlace = false;
+    setMode("orb");
+  }, 1700);
 }
 
 const widgetOrb = document.getElementById("widgetOrb");
 if (widgetOrb) {
+  // Tap the orb body = record in place (no panel); tap again = stop.
   widgetOrb.addEventListener("click", () => {
+    if (recording) stopRecording();
+    else startInPlaceRamble();
+  });
+}
+// Chevron = open the full panel.
+if (els.orbChev) {
+  els.orbChev.addEventListener("click", (e) => {
+    e.stopPropagation();
     setMode("panel");
-    if (!recording) startRecording();
   });
 }
 
-// Hotkey (show + start recording) → expand, then record.
+// Hotkey (show + start recording) → quick in-place ramble (no panel).
 window.addEventListener("ramble:start-recording", () => {
-  setMode("panel");
-  if (!recording) startRecording();
+  if (!recording) startInPlaceRamble();
 });
 
 // Blur → collapse back to the orb (unless mid-ramble).
@@ -161,6 +222,7 @@ async function startRecording() {
     };
     mediaRecorder.start();
     recording = true;
+    document.body.classList.add("rec");
     window.dispatchEvent(new CustomEvent("ramble:recording", { detail: true }));
     setOrbState("listening");
     els.orb.setAttribute("aria-label", "Stop recording");
@@ -181,6 +243,7 @@ async function startRecording() {
 function stopRecording() {
   if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
   recording = false;
+  document.body.classList.remove("rec");
   window.dispatchEvent(new CustomEvent("ramble:recording", { detail: false }));
   // Don't reset the glyph here — transcribe() takes over with "transcribing".
   // The cancel path resets to "idle" explicitly via cancelCapture().
@@ -205,7 +268,11 @@ function startLiveCaptions() {
       if (r.isFinal) finalText += r[0].transcript;
       else interim += r[0].transcript;
     }
-    els.liveCaption.textContent = (finalText + interim).trim();
+    const live = (finalText + interim).trim();
+    els.liveCaption.textContent = live;
+    if (inPlace) {
+      setBubble(live ? '<span class="cap live">“' + escapeHtml(live) + "</span>" : '<span class="muted">Listening…</span>');
+    }
   };
   recognition.onerror = () => {};
   try {
@@ -336,6 +403,8 @@ function cancelCapture() {
   els.transcriptText.value = "";
   els.liveCaption.hidden = true;
   els.hint.textContent = "Tap to speak";
+  inPlace = false;
+  hideBubble();
   setOrbState("idle");
   if (IS_WIDGET) setMode("orb");
 }
@@ -354,12 +423,22 @@ async function transcribe(blob) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Transcription failed");
     els.thinking.hidden = true;
-    setOrbState("idle");
     setStatus("ready", "Check it");
-    if (!data.transcript) return toast("Didn't catch anything — try again.", "error");
+    if (!data.transcript) {
+      setOrbState("idle");
+      if (inPlace) return endInPlace('<span class="muted">Didn’t catch anything — try again.</span>');
+      return toast("Didn't catch anything — try again.", "error");
+    }
     els.transcriptText.value = data.transcript;
-    els.transcript.hidden = false;
-    els.transcriptText.focus();
+    if (inPlace) {
+      // Quick ramble: skip the manual edit/sort step and auto-sort. Bubble shows the transcript.
+      setBubble('<span class="cap">“' + escapeHtml(data.transcript) + '”</span>');
+      structure(data.transcript);
+    } else {
+      setOrbState("idle");
+      els.transcript.hidden = false;
+      els.transcriptText.focus();
+    }
   } catch (err) {
     els.thinking.hidden = true;
     setOrbState("idle");
@@ -387,11 +466,13 @@ async function structure(transcript) {
     currentDrafts = data.drafts || [];
     if (!currentDrafts.length) {
       setOrbState("idle");
+      if (inPlace) return endInPlace('<span class="muted">No tasks found — try again.</span>');
       return toast("No tasks found in that — try again.");
     }
     buildQueue();
     if (queue.length) {
       setOrbState("idle"); // user answers follow-ups; finalize() resumes the glyph
+      if (inPlace) promoteToPanel(); // follow-ups need the full panel
       startFollowups();
     } else {
       finalize();
@@ -509,8 +590,12 @@ async function finalize() {
     setOrbState("done");
     clearTimeout(finalize._t);
     finalize._t = setTimeout(() => setOrbState("idle"), 1300);
-    toast(`Added ${data.added} task${data.added === 1 ? "" : "s"} ✦`);
-    els.taskGroups.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (inPlace) {
+      endInPlace(`<div class="done">✓ Sorted ${data.added} task${data.added === 1 ? "" : "s"}</div>`);
+    } else {
+      toast(`Added ${data.added} task${data.added === 1 ? "" : "s"} ✦`);
+      els.taskGroups.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   } catch (err) {
     els.thinking.hidden = true;
     setOrbState("idle");
