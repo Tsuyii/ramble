@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Ramble — say it, I'll sort it</title>
+    <title>Ramble</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
     <script>
       // Apply the saved theme before first paint to avoid a flash. Default: Paper & Ink.
@@ -83,7 +83,7 @@
     <main class="stage">
       <!-- CAPTURE -->
       <section class="capture" id="capture" aria-label="Capture a brain-dump">
-        <p class="capture__lead">Say it. I'll sort it.</p>
+        <p class="capture__lead">What's on your plate?</p>
         <p class="capture__sub">Tap and ramble about everything on your plate. I'll turn it into a clean list.</p>
 
         <button class="orb" id="orb" type="button" data-state="idle" aria-label="Start recording">
@@ -271,6 +271,7 @@
     <div class="notices" id="noticeStack" role="region" aria-label="Reminders" aria-live="polite"></div>
 
     <script src="/tauri-bridge.js"></script>
+    <script src="/electron-bridge.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

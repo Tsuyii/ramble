@@ -16,7 +16,21 @@ The point of this build is (a) it's **ours / local**, (b) it runs on **DeepSeek*
 - **Task** — a single structured todo extracted from a Ramble. Has: title, optional
   due-date, optional priority (high/med/low), **projectId**, optional sub-steps, status.
 - **Project** — a workspace a task is filed into (e.g. Ramble, Trade-in). User-owned list;
-  **Inbox** is the always-present fallback. See [[ADR-0001-projects-and-learning]].
+  **Inbox** is the always-present fallback. **Folder** is the dashboard's UI name for a Project —
+  same thing, not a second hierarchy. See [[ADR-0001-projects-and-learning]],
+  [[ADR-0008-dashboard-data-model]].
+- **Tag** — a colored label on a Task (e.g. Web, Design, SMM). A Task has **zero or more**, and
+  they are **orthogonal** to its Project/Folder. The Brain may assign Tags during extraction;
+  Tag edits feed the memory loop like project corrections. New in the dashboard milestone. See
+  [[ADR-0008-dashboard-data-model]].
+- **Subtask** — a lightweight checklist item under a Task: `{ text, done }` only. **No** own
+  due-date, tags, priority, or project. The "N/M completed" bar counts these. See
+  [[ADR-0008-dashboard-data-model]].
+- **Note** — a standalone freeform jot (title/body) in its **own list**, independent of Tasks and
+  Folders. The Brain may route a "just remember this" ramble into a Note instead of a Task. See
+  [[ADR-0008-dashboard-data-model]].
+- **Profile** — a **local-only** name + avatar (set once, stored locally). No login, no account,
+  no sync — visual personality only. See [[ADR-0008-dashboard-data-model]].
 - **Follow-up** — an AI clarifying question asked *before saving*, **one at a time**, only
   when genuinely unsure (project / due / priority / breakdown). Conservative by design.
 - **Correction** — when the user edits a saved task's project or priority. Logged to
@@ -32,8 +46,9 @@ The point of this build is (a) it's **ours / local**, (b) it runs on **DeepSeek*
 - **Transcription** — speech→text. Live captions use the browser Web Speech API (instant);
   the accurate final pass uses **Groq Whisper** on stop. In the widget, live captions are
   **platform-adaptive** — see [[ADR-0003-platform-adaptive-captions]].
-- **Widget** — the v2 desktop form of Ramble: a Tauri-shelled tray app with a global
-  hotkey. The browser app and the widget run the **same** frontend + server code.
+- **Widget** — the desktop form of Ramble: an **Electron**-shelled tray app with a global
+  hotkey. The browser app and the widget run the **same** frontend + server code. (Migrated
+  from Tauri — see [[ADR-0006-electron-shell-migration]].)
 - **Orb** — the widget's always-visible resting form: a small **solid** circle that follows
   the active theme (surface + accent) with an **auto-contrast scrim** on light themes.
   Tapping its **body** records **in place** (no panel). **Rests bottom-right** (out of the
@@ -45,13 +60,18 @@ The point of this build is (a) it's **ours / local**, (b) it runs on **DeepSeek*
 - **Bubble** — a transient speech bubble next to the orb during a ramble: streams the live
   caption → shows the transcript while sorting → "✓ Sorted N tasks" → auto-dismisses.
   Smart-placed to always fit on screen. Quick ramble = orb + bubble only; panel never opens.
-- **Panel** — the full task-list app. Opens **centered on screen**; closing returns to the
-  orb in its corner. Opened only via the chevron.
+- **Panel / Dashboard** — the full app the orb morphs into: left sidebar nav (Folders, Tags,
+  filters, Profile + Settings), task list, calendar, notes, stats. Opens **centered** (~1100×720),
+  is a **normal window — NOT always-on-top** (taskbar + alt-tab), with a Settings toggle to
+  maximize. A **right-side detail panel** edits a clicked Task; a **centered modal** creates one.
+  Opened only via the chevron; closing morphs back to the orb. See
+  [[ADR-0007-dashboard-supersedes-orb-panel]].
 - **Morph** — the orb⟷panel transition; grows from the orb's current position. Deliberate
   ("make it last longer"); exact easing/timing refined later.
-- **Sidecar** — the bundled Node runtime + `server.js` that Tauri spawns to hold the keys
-  and serve the API locally. The Rust shell is a thin wrapper around it. See
-  [[ADR-0002-tauri-node-sidecar]].
+- **Sidecar** — *(historical, Tauri era)* the bundled Node runtime + `server.js` that Tauri
+  spawned to hold keys and serve the API. Under Electron, `server.js` runs **in the main process**
+  (no separate per-OS Node binary). See [[ADR-0002-tauri-node-sidecar]] (superseded by
+  [[ADR-0006-electron-shell-migration]]).
 
 ## Locked decisions
 1. **Form factor:** desktop widget — but **browser/localhost first**, wrap as a real
@@ -64,10 +84,28 @@ The point of this build is (a) it's **ours / local**, (b) it runs on **DeepSeek*
    priority / breakdown *only when warranted*; trivial tasks save with no questions.
 6. **Storage:** v1 = local only (localStorage / a local JSON file). No cloud, no account.
 
-## Locked decisions — v2 widget (Tauri wrap)
+## Locked decisions — v3 dashboard + Electron (2026-06-28)
+> Supersedes parts of the v2 Tauri-wrap decisions below. See
+> [[ADR-0006-electron-shell-migration]], [[ADR-0007-dashboard-supersedes-orb-panel]],
+> [[ADR-0008-dashboard-data-model]].
+1. **Shell:** **Electron**, not Tauri — local builds work (Smart App Control blocked Tauri's
+   proc-macro DLLs) and the user iterates on the dashboard heavily. `server.js` runs in the
+   Electron main process; no per-OS Node sidecar binary.
+2. **Build order:** migrate shell to Electron **first** (unblocks local builds), then build the
+   dashboard with a fast local loop.
+3. **Dashboard:** the orb morphs UP into a full dashboard (sidebar, tasks, calendar, notes, stats,
+   profile/settings). Dashboard is a **normal window, NOT always-on-top**; only the resting orb
+   floats. Opens centered ~1100×720; Settings can maximize. Task edit = right detail panel;
+   task create = centered modal.
+4. **Data model:** Folder = Project (UI rename). **Tags** new (0+ colored labels/Task, AI-assigned,
+   orthogonal to Folder). **Notes** new (standalone freeform list). **Subtasks** = checklist items
+   `{text, done}` only. **Profile** is local-only (name+avatar) — **no login/account/sync**, the
+   local-only lock holds.
+
+## Locked decisions — v2 widget (Tauri wrap) — *historical, superseded by v3 above*
 1. **Backend:** Tauri spawns the existing `server.js` as a bundled **Node sidecar**; the
    webview loads the same frontend from `127.0.0.1`. No rewrite. See
-   [[ADR-0002-tauri-node-sidecar]].
+   [[ADR-0002-tauri-node-sidecar]]. *(Replaced: Electron main-process server, ADR-0006.)*
 2. **Targets:** Windows **and** macOS. (Per-OS Node sidecar binary; macOS needs
    codesigning + notarization.)
 3. **Form:** an **orb** bottom-right of the screen that expands to a panel and collapses

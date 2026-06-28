@@ -149,8 +149,15 @@ const projectColor = (id) => (id === "inbox" || !id ? "var(--text-faint)" : stat
 
 els.orb.addEventListener("click", () => (recording ? stopRecording() : startRecording()));
 
-// ---------- widget orb mode (Tauri only) ----------
-const IS_WIDGET = Boolean(window.__TAURI__);
+// ---------- widget orb mode (desktop shell only) ----------
+// Neutral shell seam: request/response goes through `shell.invoke`, populated by whichever
+// shell is present. Electron exposes window.ramble; Tauri exposes window.__TAURI__. In a
+// plain browser both are undefined → shell is null → IS_WIDGET is false. See public/AGENTS.md.
+const shell =
+  window.ramble ||
+  (window.__TAURI__ && { invoke: (cmd, args) => window.__TAURI__.core.invoke(cmd, args) }) ||
+  null;
+const IS_WIDGET = Boolean(shell);
 
 // Switch between the collapsed orb and the expanded panel; the shell resizes the window.
 function setMode(mode) {
@@ -1293,7 +1300,7 @@ async function resolveApi() {
   // where /api/* would otherwise resolve to the tauri:// page and return HTML).
   for (let i = 0; i < 60; i++) {
     try {
-      const port = await window.__TAURI__.core.invoke("get_api_port");
+      const port = await shell.invoke("get_api_port");
       if (port) {
         API_BASE = `http://127.0.0.1:${port}`;
         return;
@@ -1511,7 +1518,7 @@ function validateHotkey(hk) {
 async function applyHotkey(hk) {
   if (!IS_WIDGET) return true;
   try {
-    await window.__TAURI__.core.invoke("set_global_shortcut", {
+    await shell.invoke("set_global_shortcut", {
       ctrl: hk.ctrl, shift: hk.shift, alt: hk.alt, meta: hk.meta, code: hk.code,
     });
     return true;
