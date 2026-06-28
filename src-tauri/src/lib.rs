@@ -39,6 +39,21 @@ struct CurrentShortcut(Mutex<Option<Shortcut>>);
 #[derive(Default)]
 struct WidgetAnchor(Mutex<Option<(i32, i32)>>);
 
+/// True while the user is dragging the panel by its title bar. Windows blurs the window
+/// during the OS move loop, which would otherwise trip the blur-to-collapse behaviour and
+/// snap the panel shut mid-drag. The frontend sets this on drag-start; it clears on the
+/// focus the window regains when the drag ends.
+#[derive(Default)]
+struct Dragging(Mutex<bool>);
+
+/// Set by the frontend when a title-bar drag starts/ends (see [`Dragging`]).
+#[tauri::command]
+fn set_dragging(state: tauri::State<Dragging>, dragging: bool) {
+    if let Ok(mut g) = state.0.lock() {
+        *g = dragging;
+    }
+}
+
 #[tauri::command]
 fn get_api_port(state: tauri::State<ApiPort>) -> u16 {
     state.0.lock().map(|g| *g).unwrap_or(0)
@@ -342,9 +357,11 @@ pub fn run() {
         .manage(ApiPort::default())
         .manage(CurrentShortcut::default())
         .manage(WidgetAnchor::default())
+        .manage(Dragging::default())
         .invoke_handler(tauri::generate_handler![
             set_recording,
             set_widget_mode,
+            set_dragging,
             get_api_port,
             set_global_shortcut,
             notify
@@ -431,20 +448,34 @@ pub fn run() {
 
             Ok(())
         })
-        .on_window_event(|window, event| {
-            // Collapse the panel back to the orb on blur, but stay expanded while recording.
-            if let WindowEvent::Focused(false) = event {
-                let recording = window
-                    .app_handle()
+        .on_window_event(|window, event| match event {
+            // Collapse the panel back to the orb on blur — but NOT while recording, and NOT
+            // while dragging the title bar (Windows blurs during the OS move loop).
+            WindowEvent::Focused(false) => {
+                let app = window.app_handle();
+                let recording = app
                     .state::<RecordingState>()
                     .0
                     .lock()
                     .map(|g| *g)
                     .unwrap_or(false);
-                if !recording {
+                let dragging = app
+                    .try_state::<Dragging>()
+                    .map(|s| s.0.lock().map(|g| *g).unwrap_or(false))
+                    .unwrap_or(false);
+                if !recording && !dragging {
                     let _ = window.emit("ramble:collapse", ());
                 }
             }
+            // Drag ended → the window regains focus; clear the drag guard.
+            WindowEvent::Focused(true) => {
+                if let Some(s) = window.app_handle().try_state::<Dragging>() {
+                    if let Ok(mut g) = s.0.lock() {
+                        *g = false;
+                    }
+                }
+            }
+            _ => {}
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

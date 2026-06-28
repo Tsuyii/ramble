@@ -195,6 +195,14 @@ if (els.orbChev) {
   });
 }
 
+// Title-bar drag: flag the shell so the blur it fires during the OS move loop doesn't
+// collapse the panel. Start on mousedown over a drag region; clear on mouseup.
+const setDragging = (on) => window.dispatchEvent(new CustomEvent("ramble:dragging", { detail: on }));
+document.addEventListener("mousedown", (e) => {
+  if (e.target.closest("[data-tauri-drag-region]") && !e.target.closest("button")) setDragging(true);
+});
+window.addEventListener("mouseup", () => setDragging(false));
+
 // Hotkey (show + start recording) → quick in-place ramble (no panel).
 window.addEventListener("ramble:start-recording", () => {
   if (!recording) startInPlaceRamble();

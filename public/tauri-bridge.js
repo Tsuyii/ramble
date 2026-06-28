@@ -22,6 +22,12 @@
     invoke("set_widget_mode", { mode: String(e.detail || "orb") }).catch(() => {});
   });
 
+  // Title-bar drag start/end — so the shell doesn't collapse the panel on the blur that
+  // Windows fires during the OS move loop.
+  window.addEventListener("ramble:dragging", (e) => {
+    invoke("set_dragging", { dragging: Boolean(e.detail) }).catch(() => {});
+  });
+
   // Global hotkey (Ctrl+Shift+Space) → show + start recording.
   listen("ramble:hotkey", () => {
     window.dispatchEvent(new CustomEvent("ramble:start-recording"));
