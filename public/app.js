@@ -34,6 +34,7 @@ const els = {
   taskGroups: $("taskGroups"),
   empty: $("empty"),
   tasksCount: $("tasksCount"),
+  tagFilter: $("tagFilter"),
   toast: $("toast"),
   noticeStack: $("noticeStack"),
   orbBubble: $("orbBubble"),
@@ -75,6 +76,7 @@ const state = {
   tasks: [],
   filter: "all", // "all" | "inbox" | projectId
   detailId: null, // task open in the right-side detail panel, or null
+  tagFilter: null, // when set, the task list is narrowed to tasks carrying this tag
 };
 
 let mediaRecorder = null;
@@ -794,7 +796,9 @@ function dayKey(due) {
   return { key: "004-" + due, label: note, note: d.toLocaleDateString("en-US", { weekday: "short" }) };
 }
 
-function visibleTasks() {
+// The current sidebar view's tasks, before any tag narrowing — the set the tag-filter
+// chips are derived from.
+function baseTasks() {
   const f = state.filter;
   if (f === "all") return state.tasks.filter((t) => !t.done);
   if (f === "completed") return state.tasks.filter((t) => t.done);
@@ -804,7 +808,42 @@ function visibleTasks() {
   return state.tasks.filter((t) => !t.done && t.projectId === f);
 }
 
+function visibleTasks() {
+  let list = baseTasks();
+  if (state.tagFilter) list = list.filter((t) => Array.isArray(t.tags) && t.tags.includes(state.tagFilter));
+  return list;
+}
+
+// Tag-filter chip row above the list: one chip per tag present in the current view.
+// Clicking narrows the list to that tag; clicking the active chip clears it.
+function renderTagFilter() {
+  if (!els.tagFilter) return;
+  const tags = [...new Set(baseTasks().flatMap((t) => (Array.isArray(t.tags) ? t.tags : [])))].sort();
+  // Drop a stale selection (e.g. after switching views) so visibleTasks() stays coherent.
+  if (state.tagFilter && !tags.includes(state.tagFilter)) state.tagFilter = null;
+  els.tagFilter.innerHTML = "";
+  if (!tags.length) {
+    els.tagFilter.hidden = true;
+    return;
+  }
+  els.tagFilter.hidden = false;
+  for (const tag of tags) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "tagfilter__chip";
+    chip.style.setProperty("--tc", `var(--tagc-${tagHue(tag)})`);
+    chip.setAttribute("aria-pressed", String(state.tagFilter === tag));
+    chip.textContent = tag;
+    chip.addEventListener("click", () => {
+      state.tagFilter = state.tagFilter === tag ? null : tag;
+      renderTasks();
+    });
+    els.tagFilter.appendChild(chip);
+  }
+}
+
 function renderTasks() {
+  renderTagFilter();
   const tasks = visibleTasks();
   els.tasksCount.textContent = tasks.length ? `${tasks.filter((t) => !t.done).length} open` : "";
   els.taskGroups.innerHTML = "";

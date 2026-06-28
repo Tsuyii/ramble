@@ -2745,6 +2745,34 @@ body.dash .tasks__head .section-title { font-family: var(--font-display); }
   color: color-mix(in srgb, var(--tc) 72%, var(--text));
 }
 
+/* Tag-filter chip row above the task list. Quiet by default; the active chip fills with
+   its hue. Derived from the tags present in the current view. */
+.tagfilter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 2px 0 16px;
+}
+.tagfilter[hidden] { display: none; }
+.tagfilter__chip {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tc) 32%, transparent);
+  background: transparent;
+  color: color-mix(in srgb, var(--tc) 72%, var(--text));
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+}
+.tagfilter__chip:hover { background: color-mix(in srgb, var(--tc) 12%, transparent); }
+.tagfilter__chip[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--tc) 80%, var(--surface));
+  border-color: transparent;
+  color: var(--on-accent);
+}
+
 /* ===== Task detail panel (right-side, ADR-0007) ===== */
 /* An editorial "filing card" that slides in from the right margin. The colored spine ties
    it to the task's folder. Edits commit in place (auto-save). */
