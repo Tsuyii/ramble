@@ -18,10 +18,12 @@ and provides the orb↔panel morph, global hotkey, tray, and OS notifications.
 ## Local Contracts
 - **CommonJS on purpose.** Files are `.cjs` so they stay CommonJS even though the repo root is
   `"type": "module"`. Don't rename to `.js`.
-- **Faithful port, no behavior change (Phase 0).** `main.cjs` mirrors the old `lib.rs`: same 3
-  morph sizes (orb 140², capture 340×360, panel 400×600), bottom-right orb rest, blur→collapse
-  guarded by `recording`/`dragging`, default hotkey `Ctrl+Shift+Space`. The dashboard's
-  *normal-window / drop-always-on-top* behavior (ADR-0007) is a **Phase 1** change, NOT here.
+- **Morph sizes & chrome.** `orb 140²`, `capture 340×360`, `panel 400×600` all float
+  (always-on-top, off-taskbar, fixed). `dashboard 1100×720` (Phase 1, ADR-0007) is a normal,
+  resizable, NOT-always-on-top window centred on the monitor; `applyWindowChrome(mode)` flips
+  this. The orb rests bottom-right; blur→collapse is guarded by `recording`/`dragging`. The
+  frontend opts into `dashboard` via `ramble:mode` once its layout exists (until then it sends
+  `panel`).
 - **IPC command surface = the old Tauri commands.** `ramble:invoke` handles `set_recording`,
   `set_widget_mode`, `set_dragging`, `get_api_port`, `set_global_shortcut`, `notify`. Keep these
   names — the frontend depends on them. Errors must **throw** so the renderer promise rejects.

@@ -19,9 +19,31 @@ const net = require("node:net");
 const path = require("node:path");
 const fs = require("node:fs");
 
-// --- the three morph sizes (logical px), mirrored from the Tauri shell (lib.rs) ---
-const SIZES = { orb: [140, 140], capture: [340, 360], panel: [400, 600] };
+// --- morph sizes (logical px). orb/capture/panel mirror the old Tauri shell; `dashboard`
+// is the Phase 1 full window (ADR-0007): a normal, resizable, NOT-always-on-top window. ---
+const SIZES = {
+  orb: [140, 140],
+  capture: [340, 360],
+  panel: [400, 600],
+  dashboard: [1100, 720],
+};
+const DASHBOARD_MIN = [880, 600];
 const MARGIN = 24;
+
+// orb/capture/panel float (always-on-top, off the taskbar, fixed size); the dashboard is a
+// real app window. Switching modes flips this chrome (ADR-0007).
+function applyWindowChrome(mode) {
+  if (!win) return;
+  const isDashboard = mode === "dashboard";
+  win.setAlwaysOnTop(!isDashboard);
+  win.setSkipTaskbar(!isDashboard);
+  win.setResizable(isDashboard);
+  if (isDashboard) {
+    win.setMinimumSize(DASHBOARD_MIN[0], DASHBOARD_MIN[1]);
+  } else {
+    win.setMinimumSize(SIZES.orb[0], SIZES.orb[1]);
+  }
+}
 
 let win = null;
 let tray = null;
@@ -102,10 +124,13 @@ function setWidgetMode(mode) {
   // Leaving the orb: remember where it lives so we can restore it on collapse.
   if (mode !== "orb") widgetAnchor = cur;
 
+  // Flip window chrome first (resizable must be set before sizing the dashboard).
+  applyWindowChrome(mode);
+
   let x;
   let y;
-  if (mode === "panel") {
-    // Centre the panel on the window's current monitor (independent of the orb corner).
+  if (mode === "panel" || mode === "dashboard") {
+    // Centre on the window's current monitor (independent of the orb corner).
     const wa = screen.getDisplayMatching(b).workArea;
     x = Math.round(wa.x + (wa.width - w) / 2);
     y = Math.round(wa.y + (wa.height - h) / 2);
