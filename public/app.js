@@ -40,6 +40,14 @@ const els = {
   orbChev: $("orbChev"),
   widgetShell: $("widgetShell"),
   widgetOrb: $("widgetOrb"),
+  sideNav: $("sideNav"),
+  folderList: $("folderList"),
+  newRamble: $("newRamble"),
+  addFolder: $("addFolder"),
+  settingsBtnSide: $("settingsBtnSide"),
+  profileBtn: $("profileBtn"),
+  profileName: $("profileName"),
+  profileAvatar: $("profileAvatar"),
 };
 
 const PRIO_COLOR = { high: "var(--p-high)", medium: "var(--p-med)", low: "var(--p-low)" };
@@ -662,6 +670,85 @@ function renderProjectBar() {
   els.projectBar.appendChild(add);
 }
 
+// ---------- dashboard sidebar (Phase 1) ----------
+
+function dueDiffDays(due) {
+  if (!due) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(due + "T00:00:00");
+  return Math.round((d - today) / 86400000);
+}
+const isTodayOrOverdue = (due) => {
+  const n = dueDiffDays(due);
+  return n !== null && n <= 0;
+};
+const isUpcoming = (due) => {
+  const n = dueDiffDays(due);
+  return n !== null && n > 0;
+};
+
+// Date/status views for the sidebar nav. Icons are inline 24×24 stroke paths.
+const NAV_VIEWS = [
+  { id: "all", name: "All tasks", icon: '<path d="M4 6h16M4 12h16M4 18h16"/>' },
+  { id: "today", name: "Today", icon: '<rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/>' },
+  { id: "upcoming", name: "Upcoming", icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/>' },
+  { id: "completed", name: "Completed", icon: '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/>' },
+];
+
+function selectFilter(id) {
+  state.filter = id;
+  renderSidebar();
+  renderProjectBar();
+  renderTasks();
+}
+
+function renderSidebar() {
+  if (!els.sideNav) return;
+  const open = state.tasks.filter((t) => !t.done);
+  const counts = {
+    all: open.length,
+    today: open.filter((t) => isTodayOrOverdue(t.due)).length,
+    upcoming: open.filter((t) => isUpcoming(t.due)).length,
+    completed: state.tasks.filter((t) => t.done).length,
+  };
+  els.sideNav.innerHTML = "";
+  for (const v of NAV_VIEWS) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "navitem";
+    b.setAttribute("aria-current", String(state.filter === v.id));
+    const n = counts[v.id] || 0;
+    b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${v.icon}</svg><span>${v.name}</span>${
+      n ? `<span class="navitem__count">${n}</span>` : ""
+    }`;
+    b.addEventListener("click", () => selectFilter(v.id));
+    els.sideNav.appendChild(b);
+  }
+
+  // Folders (= Projects). Inbox first, then user folders; counts are open tasks.
+  const fcounts = {};
+  for (const t of open) {
+    const k = t.projectId || "inbox";
+    fcounts[k] = (fcounts[k] || 0) + 1;
+  }
+  els.folderList.innerHTML = "";
+  const folders = [{ id: "inbox", name: "Inbox", color: "var(--text-faint)" }, ...state.projects];
+  for (const f of folders) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "folderitem";
+    b.setAttribute("aria-current", String(state.filter === f.id));
+    b.style.setProperty("--fc", f.color);
+    const n = fcounts[f.id] || 0;
+    b.innerHTML = `<span class="folderitem__dot"></span><span>${escapeHtml(f.name)}</span>${
+      n ? `<span class="folderitem__count">${n}</span>` : ""
+    }`;
+    b.addEventListener("click", () => selectFilter(f.id));
+    els.folderList.appendChild(b);
+  }
+}
+
 async function addProject() {
   const name = prompt("New project name:");
   if (!name || !name.trim()) return;
@@ -696,9 +783,13 @@ function dayKey(due) {
 }
 
 function visibleTasks() {
-  if (state.filter === "all") return state.tasks;
-  if (state.filter === "inbox") return state.tasks.filter((t) => !t.projectId || t.projectId === "inbox");
-  return state.tasks.filter((t) => t.projectId === state.filter);
+  const f = state.filter;
+  if (f === "all") return state.tasks.filter((t) => !t.done);
+  if (f === "completed") return state.tasks.filter((t) => t.done);
+  if (f === "today") return state.tasks.filter((t) => !t.done && isTodayOrOverdue(t.due));
+  if (f === "upcoming") return state.tasks.filter((t) => !t.done && isUpcoming(t.due));
+  if (f === "inbox") return state.tasks.filter((t) => !t.done && (!t.projectId || t.projectId === "inbox"));
+  return state.tasks.filter((t) => !t.done && t.projectId === f);
 }
 
 function renderTasks() {
@@ -1286,6 +1377,7 @@ async function refresh() {
   const data = await (await fetch("/api/state")).json();
   state.tasks = data.tasks;
   state.projects = data.projects;
+  renderSidebar();
   renderProjectBar();
   renderTasks();
 }
@@ -1443,6 +1535,48 @@ async function saveSettings() {
 
 document.getElementById("settingsBtn").addEventListener("click", openSettings);
 document.getElementById("settingsSave").addEventListener("click", saveSettings);
+
+// ---------- dashboard shell wiring (Phase 1) ----------
+// In the browser (no shell) the dashboard is the full-page app. In the widget it's the
+// morphed window; setMode("dashboard") adds the class there.
+if (!IS_WIDGET) document.body.classList.add("dash");
+
+// Local-only profile (name + avatar initial), stored on this machine. No account.
+function loadProfile() {
+  let name = "You";
+  try {
+    name = (localStorage.getItem("ramble-profile-name") || "You").trim() || "You";
+  } catch {}
+  if (els.profileName) els.profileName.textContent = name;
+  if (els.profileAvatar) els.profileAvatar.textContent = name.charAt(0).toUpperCase();
+}
+if (els.profileBtn) {
+  const rename = () => {
+    const name = prompt("Your name", els.profileName.textContent)?.trim();
+    if (!name) return;
+    try {
+      localStorage.setItem("ramble-profile-name", name);
+    } catch {}
+    loadProfile();
+  };
+  els.profileBtn.addEventListener("click", rename);
+  els.profileBtn.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      rename();
+    }
+  });
+  loadProfile();
+}
+if (els.settingsBtnSide) els.settingsBtnSide.addEventListener("click", openSettings);
+if (els.addFolder) els.addFolder.addEventListener("click", addProject);
+if (els.newRamble) {
+  els.newRamble.addEventListener("click", () => {
+    const cap = document.querySelector(".capture");
+    if (cap) cap.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!IS_WIDGET && els.typeToggle) setTimeout(() => els.orb?.focus(), 200);
+  });
+}
 settingsModal.addEventListener("click", (e) => {
   if (e.target.hasAttribute("data-close")) closeSettings();
 });

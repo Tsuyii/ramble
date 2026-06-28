@@ -42,6 +42,12 @@ in the desktop shell's renderer. No framework, no build step.
   Settings) · task list grouped by date · **right detail-panel** to edit a clicked task ·
   **centered modal** to create one · calendar · standalone notes · stats. Tags = 0+ colored
   labels/task; Subtasks = `{text,done}` checklist; Profile is local-only (no login UI).
+- **Dashboard shell is gated by `body.dash`.** `.dash` is `display: contents` (passthrough)
+  until `body.dash` is set, so the small widget panel still flows normally. The browser adds
+  `body.dash` at boot (`!IS_WIDGET`); the widget will add it when it morphs to `dashboard`
+  mode. Sidebar nav drives `state.filter` (`all`/`today`/`upcoming`/`completed`/`inbox`/a
+  folderId) via `selectFilter` → `renderSidebar`+`renderTasks`. `renderSidebar()` runs in
+  `refresh()`. **Slice A done** (shell); Tags/detail-panel/modal/calendar/notes/stats pending.
 - **Two window modes are the shell's job, not CSS.** The frontend signals intent via
   `ramble:mode`; the shell resizes/repositions and toggles always-on-top. Don't fake the
   morph with viewport tricks.

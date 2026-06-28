@@ -80,6 +80,54 @@
       </div>
     </header>
 
+    <!-- DASHBOARD SHELL (Phase 1, ADR-0007) — sidebar + main. Shown full-page in the
+         browser and when the orb morphs to the dashboard window. -->
+    <div class="dash">
+      <aside class="sidebar" aria-label="Sidebar">
+        <div class="sidebar__brand" data-tauri-drag-region>
+          <svg class="wordmark__glyph" viewBox="0 0 28 16" aria-hidden="true">
+            <g class="wordmark__bars">
+              <rect x="0" y="6" width="2.5" height="4" rx="1.25" />
+              <rect x="5" y="3" width="2.5" height="10" rx="1.25" />
+              <rect x="10" y="0" width="2.5" height="16" rx="1.25" />
+              <rect x="15" y="4" width="2.5" height="8" rx="1.25" />
+              <rect x="20" y="6.5" width="2.5" height="3" rx="1.25" />
+              <rect x="25" y="5" width="2.5" height="6" rx="1.25" />
+            </g>
+          </svg>
+          <span class="wordmark__name">Ramble</span>
+        </div>
+
+        <button class="sidebar__cta" id="newRamble" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          New ramble
+        </button>
+
+        <nav class="sidebar__nav" id="sideNav" aria-label="Views"></nav>
+
+        <div class="sidebar__section">
+          <div class="sidebar__heading">
+            <span>Folders</span>
+            <button class="sidebar__add" id="addFolder" type="button" aria-label="New folder" title="New folder">＋</button>
+          </div>
+          <div class="sidebar__folders" id="folderList"></div>
+        </div>
+
+        <div class="sidebar__foot">
+          <div class="profile" id="profileBtn" role="button" tabindex="0" title="You">
+            <span class="profile__avatar" id="profileAvatar" aria-hidden="true"></span>
+            <span class="profile__name" id="profileName">You</span>
+          </div>
+          <button class="iconbtn" id="settingsBtnSide" type="button" aria-label="Settings" title="Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+              <circle cx="12" cy="12" r="3.1" />
+              <path d="M19.4 13.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H2a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 3.6 8.5a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H8a1.7 1.7 0 0 0 1-1.56V2a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V8a1.7 1.7 0 0 0 1.56 1.03H22a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.47Z" />
+            </svg>
+          </button>
+        </div>
+      </aside>
+
+      <div class="dash-main">
     <main class="stage">
       <!-- CAPTURE -->
       <section class="capture" id="capture" aria-label="Capture a brain-dump">
@@ -187,6 +235,8 @@
         </div>
       </section>
     </main>
+      </div>
+    </div>
 
     <!-- SETTINGS -->
     <div class="modal" id="settingsModal" hidden>
