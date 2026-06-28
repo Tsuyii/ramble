@@ -21,18 +21,20 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.3",
     "@yao-pkg/pkg": "^6.20.0",
-    "electron": "^33.2.0",
+    "electron": "^33.4.11",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.28.1"
   },
   "build": {
     "appId": "earth.ramble.app",
     "productName": "Ramble",
+    "asar": false,
     "files": [
       "electron/**",
       "server.js",
       "public/**",
-      "src-tauri/icons/32x32.png"
+      "src-tauri/icons/32x32.png",
+      "!src-tauri/target/**"
     ],
     "extraMetadata": {
       "type": "module"
