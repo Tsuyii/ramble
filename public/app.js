@@ -39,6 +39,7 @@ const els = {
   orbBubble: $("orbBubble"),
   orbChev: $("orbChev"),
   widgetShell: $("widgetShell"),
+  widgetOrb: $("widgetOrb"),
 };
 
 const PRIO_COLOR = { high: "var(--p-high)", medium: "var(--p-med)", low: "var(--p-low)" };
@@ -79,6 +80,9 @@ function setStatus() {}
 // glyph shows and which animation runs; all glyphs inherit the theme accent.
 // States: idle | listening | transcribing | structuring | done
 function setOrbState(s) {
+  // Mirror the state onto the collapsed widget orb so it runs the same pipeline glyphs
+  // (idle mic → listening/transcribing bars → structuring layers → done check).
+  if (els.widgetOrb) els.widgetOrb.dataset.state = s;
   if (els.orb.dataset.state === s) return;
   els.orb.dataset.state = s;
   // Re-trigger the momentum pulse: remove, force a reflow, re-add so the
@@ -104,6 +108,10 @@ function setBubble(html) {
   if (!els.orbBubble) return;
   els.orbBubble.innerHTML = html;
   els.orbBubble.hidden = false;
+  // Smart placement: if the orb sits too near the top of the screen for the bubble to fit
+  // above it, flip the bubble below the orb. (The orb is centred in the capture window.)
+  const orbCenterY = (window.screenY || 0) + window.innerHeight / 2;
+  els.orbBubble.classList.toggle("below", orbCenterY < 210);
   requestAnimationFrame(() => els.orbBubble.classList.add("show"));
 }
 function hideBubble() {

@@ -28,14 +28,26 @@
     <div class="widget-shell" id="widgetShell" aria-hidden="true">
       <div class="orb-bubble" id="orbBubble" hidden></div>
       <span class="orb-grip" id="orbGrip" data-tauri-drag-region title="Drag to move">⠿</span>
-      <button class="widget-orb" id="widgetOrb" type="button" aria-label="Tap to ramble">
+      <button class="widget-orb" id="widgetOrb" type="button" data-state="idle" aria-label="Tap to ramble">
         <span class="widget-orb__pulse" aria-hidden="true"></span>
         <span class="widget-orb__core">
-          <svg class="widget-orb__mic" viewBox="0 0 24 24" aria-hidden="true">
+          <!-- idle: mic -->
+          <svg class="worb-glyph wmic" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z" />
             <path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" />
           </svg>
-          <span class="widget-orb__bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+          <!-- listening / transcribing: equalizer bars -->
+          <span class="worb-glyph wbars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+          <!-- structuring: layers settle into a stack -->
+          <svg class="worb-glyph wlayers" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="wlayer wlayer--1" d="M12 3 L21 7.5 L12 12 L3 7.5 Z" />
+            <path class="wlayer wlayer--2" d="M3 12 L12 16.5 L21 12" />
+            <path class="wlayer wlayer--3" d="M3 16.5 L12 21 L21 16.5" />
+          </svg>
+          <!-- done: checkmark draws on -->
+          <svg class="worb-glyph wcheck" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="wcheckpath" d="M5 12.5 L10 17.5 L19 7" />
+          </svg>
         </span>
       </button>
       <button class="orb-chev" id="orbChev" type="button" aria-label="Open Ramble" title="Open Ramble">
@@ -43,8 +55,8 @@
       </button>
     </div>
 
-    <header class="topbar">
-      <div class="wordmark">
+    <header class="topbar" data-tauri-drag-region>
+      <div class="wordmark" data-tauri-drag-region>
         <svg class="wordmark__glyph" viewBox="0 0 28 16" aria-hidden="true">
           <g class="wordmark__bars">
             <rect x="0" y="6" width="2.5" height="4" rx="1.25" />

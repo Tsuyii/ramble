@@ -32,6 +32,13 @@ struct ApiPort(Mutex<u16>);
 #[derive(Default)]
 struct CurrentShortcut(Mutex<Option<Shortcut>>);
 
+/// The orb's screen centre (physical px). The widget is one window that morphs across
+/// orb/capture/panel sizes; we capture this when leaving the orb and restore it when
+/// returning, so the orb never drifts after recording or after the panel closes
+/// (the panel may be clamped on-screen, but the orb goes back exactly where it was).
+#[derive(Default)]
+struct WidgetAnchor(Mutex<Option<(i32, i32)>>);
+
 #[tauri::command]
 fn get_api_port(state: tauri::State<ApiPort>) -> u16 {
     state.0.lock().map(|g| *g).unwrap_or(0)
@@ -125,28 +132,44 @@ const PANEL_H: f64 = 600.0;
 /// the centred orb stays put and the panel grows out of it. Clamps to the monitor so the
 /// panel never spills off-screen. The frontend calls this whenever it changes mode.
 #[tauri::command]
-fn set_widget_mode(window: WebviewWindow, mode: String) {
-    let (w, h) = match mode.as_str() {
-        "panel" => (PANEL_W, PANEL_H),
-        "capture" => (CAP_W, CAP_H),
-        _ => (ORB_SIZE, ORB_SIZE),
+fn set_widget_mode(window: WebviewWindow, anchor: tauri::State<WidgetAnchor>, mode: String) {
+    let (w, h, is_orb) = match mode.as_str() {
+        "panel" => (PANEL_W, PANEL_H, false),
+        "capture" => (CAP_W, CAP_H, false),
+        _ => (ORB_SIZE, ORB_SIZE, true),
     };
-    // Remember the centre (physical px) before resizing.
-    let centre = window.outer_position().ok().and_then(|p| {
+    // Current window centre (physical px).
+    let cur = window.outer_position().ok().and_then(|p| {
         window
             .outer_size()
             .ok()
             .map(|s| (p.x + s.width as i32 / 2, p.y + s.height as i32 / 2))
     });
+
+    // Pick the centre to grow/shrink around. Leaving the orb: capture where it lives now
+    // (handles a freshly dragged orb). Returning to the orb: restore that exact spot.
+    let target = if is_orb {
+        anchor.0.lock().ok().and_then(|g| *g).or(cur)
+    } else {
+        if let (Ok(mut g), Some(c)) = (anchor.0.lock(), cur) {
+            *g = Some(c);
+        }
+        cur
+    };
+
     let _ = window.set_size(LogicalSize::new(w, h));
-    if let (Some((cx, cy)), Ok(size)) = (centre, window.outer_size()) {
+    if let (Some((cx, cy)), Ok(size)) = (target, window.outer_size()) {
         let mut x = cx - size.width as i32 / 2;
         let mut y = cy - size.height as i32 / 2;
-        if let Ok(Some(mon)) = window.current_monitor() {
-            let scr = mon.size();
-            let m = (MARGIN as f64 * mon.scale_factor()) as i32;
-            x = x.clamp(m, (scr.width as i32 - size.width as i32 - m).max(m));
-            y = y.clamp(m, (scr.height as i32 - size.height as i32 - m).max(m));
+        // Only the panel must fully fit on-screen. The orb and the (transparent) capture
+        // window stay put even near an edge, so the orb never jumps while recording.
+        if mode == "panel" {
+            if let Ok(Some(mon)) = window.current_monitor() {
+                let scr = mon.size();
+                let m = (MARGIN as f64 * mon.scale_factor()) as i32;
+                x = x.clamp(m, (scr.width as i32 - size.width as i32 - m).max(m));
+                y = y.clamp(m, (scr.height as i32 - size.height as i32 - m).max(m));
+            }
         }
         let _ = window.set_position(PhysicalPosition::new(x, y));
     }
@@ -318,6 +341,7 @@ pub fn run() {
         .manage(Sidecar::default())
         .manage(ApiPort::default())
         .manage(CurrentShortcut::default())
+        .manage(WidgetAnchor::default())
         .invoke_handler(tauri::generate_handler![
             set_recording,
             set_widget_mode,
