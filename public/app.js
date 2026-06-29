@@ -1339,8 +1339,11 @@ function fireNotice(t, reason, overdue) {
   osNotify(reason, t.title);
 }
 
-// OS-level notification. In the widget, route through the Tauri shell; in a plain
-// browser, use the Web Notifications API when the user has granted permission.
+// OS-level notification. In the widget, route through the desktop shell (Electron, via
+// the `ramble:notify` bridge event — ADR-0006); in a plain browser, use the Web
+// Notifications API when the user has granted permission. Both paths fail silently when
+// unavailable — the in-app card (showNotice) is the always-on surface, so the alert is
+// never lost when OS notifications are off.
 function osNotify(title, body) {
   if (IS_WIDGET) {
     window.dispatchEvent(new CustomEvent("ramble:notify", { detail: { title, body } }));
@@ -1378,7 +1381,12 @@ function showNotice(t, reason, overdue) {
   card.className = "notice";
   card.dataset.key = key;
   card.dataset.overdue = String(Boolean(overdue));
-  card.setAttribute("role", "alert");
+  // The #noticeStack container is the single aria-live="polite" region (index.html), so a
+  // new card is announced once on insert. Don't also give the card role="alert": that nests
+  // an assertive live region inside the polite one and screen readers double-announce. A
+  // labeled group keeps the card discoverable when navigating the reminders region.
+  card.setAttribute("role", "group");
+  card.setAttribute("aria-label", `${reason}: ${t.title}`);
 
   const sub = noticeSubtitle(t);
   card.innerHTML = `
@@ -1405,15 +1413,36 @@ function showNotice(t, reason, overdue) {
 }
 
 function dismissNotice(card) {
+  // If this card owns the open snooze menu, tear it down so its pointer/listener don't dangle.
+  if (openSnoozeMenu && card.contains(openSnoozeMenu)) closeSnoozeMenu();
   card.dataset.leaving = "true";
   setTimeout(() => card.remove(), 200);
 }
 
+// The snooze submenu is a transient menu like the reminder popover, so it closes the same
+// way: a second click on Snooze, an outside click, or Escape (handled in the keydown
+// listener below). Tracked module-wide so only one is ever open.
+let openSnoozeMenu = null;
+
+function closeSnoozeMenu() {
+  if (!openSnoozeMenu) return;
+  openSnoozeMenu.remove();
+  openSnoozeMenu = null;
+  document.removeEventListener("click", onSnoozeOutside, true);
+}
+
+function onSnoozeOutside(e) {
+  // The wrap holds both the Snooze button and the menu; a click anywhere else closes it.
+  if (openSnoozeMenu && !openSnoozeMenu.parentElement.contains(e.target)) closeSnoozeMenu();
+}
+
 function toggleSnoozeMenu(t, wrap, card) {
-  const open = wrap.querySelector(".notice__snoozemenu");
-  if (open) return open.remove();
+  const sameMenu = openSnoozeMenu && openSnoozeMenu.parentElement === wrap;
+  closeSnoozeMenu();
+  if (sameMenu) return; // a second click on the same Snooze button just closes it
   const menu = document.createElement("div");
   menu.className = "notice__snoozemenu";
+  menu.setAttribute("role", "menu");
   const opts = [
     { label: "15 min", at: () => Date.now() + SNOOZE_MS["15 min"] },
     { label: "1 hour", at: () => Date.now() + SNOOZE_MS["1 hour"] },
@@ -1422,14 +1451,18 @@ function toggleSnoozeMenu(t, wrap, card) {
   for (const o of opts) {
     const b = document.createElement("button");
     b.type = "button";
+    b.setAttribute("role", "menuitem");
     b.textContent = o.label;
     b.addEventListener("click", () => {
-      menu.remove();
+      closeSnoozeMenu();
       snoozeTo(t, new Date(o.at()).toISOString(), card);
     });
     menu.appendChild(b);
   }
   wrap.appendChild(menu);
+  openSnoozeMenu = menu;
+  // Defer so this very click doesn't immediately close it.
+  setTimeout(() => document.addEventListener("click", onSnoozeOutside, true), 0);
 }
 
 async function snoozeTo(t, iso, card) {
@@ -1584,9 +1617,14 @@ async function clearReminder(t) {
   toast("Reminder cleared");
 }
 
-// Esc closes the reminder popover (before any other Esc handler reacts).
+// Esc closes the reminder popover or an open snooze menu (before any other Esc handler
+// reacts). The snooze menu is the more nested surface, so close it first.
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && openPopover) {
+  if (e.key !== "Escape") return;
+  if (openSnoozeMenu) {
+    e.stopPropagation();
+    closeSnoozeMenu();
+  } else if (openPopover) {
     e.stopPropagation();
     closeReminderPopover();
   }
