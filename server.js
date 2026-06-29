@@ -23,6 +23,7 @@ const __dirname = (() => {
 const DATA_DIR = process.env.RAMBLE_DATA_DIR || path.join(__dirname, "data");
 const TASKS_FILE = path.join(DATA_DIR, "tasks.json");
 const PROJECTS_FILE = path.join(DATA_DIR, "projects.json");
+const NOTES_FILE = path.join(DATA_DIR, "notes.json");
 const MEMORY_FILE = path.join(DATA_DIR, "memory.json");
 const CONFIG_FILE = path.join(DATA_DIR, "config.json");
 
@@ -99,6 +100,8 @@ async function writeJson(file, value) {
 
 const loadTasks = () => readJson(TASKS_FILE, []);
 const saveTasks = (t) => writeJson(TASKS_FILE, t);
+const loadNotes = () => readJson(NOTES_FILE, []);
+const saveNotes = (n) => writeJson(NOTES_FILE, n);
 const loadMemory = () => readJson(MEMORY_FILE, { corrections: [] });
 const saveMemory = (m) => writeJson(MEMORY_FILE, m);
 
@@ -468,6 +471,50 @@ app.patch("/api/tasks/:id", async (req, res) => {
 app.delete("/api/tasks/:id", async (req, res) => {
   const tasks = await loadTasks();
   await saveTasks(tasks.filter((t) => t.id !== req.params.id));
+  res.json({ ok: true });
+});
+
+// ---------- notes (ADR-0008: standalone freeform jots, independent of tasks/folders) ----------
+
+const NOTE_TITLE_MAX = 200;
+const cleanNoteTitle = (v) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, NOTE_TITLE_MAX);
+const cleanNoteBody = (v) => String(v == null ? "" : v);
+
+app.get("/api/notes", async (_req, res) => {
+  res.json({ notes: await loadNotes() });
+});
+
+app.post("/api/notes", async (req, res) => {
+  const notes = await loadNotes();
+  const now = new Date().toISOString();
+  const note = {
+    id: randomUUID(),
+    title: cleanNoteTitle(req.body?.title),
+    body: cleanNoteBody(req.body?.body),
+    createdAt: now,
+    updatedAt: now,
+  };
+  // Newest first, so the index opens on the freshest jot.
+  const next = [note, ...notes];
+  await saveNotes(next);
+  res.json({ note, notes: next });
+});
+
+app.patch("/api/notes/:id", async (req, res) => {
+  const notes = await loadNotes();
+  const note = notes.find((n) => n.id === req.params.id);
+  if (!note) return res.status(404).json({ error: "Not found" });
+  const b = req.body || {};
+  if (typeof b.title === "string") note.title = cleanNoteTitle(b.title);
+  if (typeof b.body === "string") note.body = cleanNoteBody(b.body);
+  note.updatedAt = new Date().toISOString();
+  await saveNotes(notes);
+  res.json({ note });
+});
+
+app.delete("/api/notes/:id", async (req, res) => {
+  const notes = await loadNotes();
+  await saveNotes(notes.filter((n) => n.id !== req.params.id));
   res.json({ ok: true });
 });
 

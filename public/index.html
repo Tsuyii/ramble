@@ -105,6 +105,11 @@
 
         <nav class="sidebar__nav" id="sideNav" aria-label="Views"></nav>
 
+        <button class="navitem navitem--notes" id="notesOpen" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v4h4M8.5 12h7M8.5 16h4"/></svg>
+          <span>Notes</span>
+        </button>
+
         <div class="sidebar__section">
           <div class="sidebar__heading">
             <span>Folders</span>
@@ -227,6 +232,7 @@
           <span class="tasks__count" id="tasksCount"></span>
         </div>
         <div class="projectbar" id="projectBar"></div>
+        <div class="tagfilter" id="tagFilter" role="group" aria-label="Filter by tag" hidden></div>
         <div id="taskGroups"></div>
         <div class="empty" id="empty">
           <div class="empty__art" aria-hidden="true">◴</div>

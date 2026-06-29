@@ -1997,4 +1997,289 @@ renderHotkey();
 // Sync the shell with the stored choice on startup (covers a custom combo from a past run).
 applyHotkey(hotkeyCurrent);
 
+// ---------- notes (ADR-0008 — standalone freeform jots) ----------
+// A self-contained two-pane "notebook" overlay: an index of notes on the left, the open
+// page (title + body, autosaving) on the right. Independent of tasks/folders. The overlay
+// markup is built here (not in the shared index.html) so the only shared-file touch is the
+// "Notes" sidebar entry. Opens centered over the dashboard, like Settings.
+
+const NOTES_AUTOSAVE_MS = 600;
+
+state.notes = [];
+state.noteId = null; // note open in the editor, or null
+
+// Build the overlay once and append to <body>.
+(function mountNotesOverlay() {
+  if ($("notesOverlay")) return;
+  const wrap = document.createElement("div");
+  wrap.className = "notes";
+  wrap.id = "notesOverlay";
+  wrap.hidden = true;
+  wrap.innerHTML = `
+    <div class="notes__scrim" data-notes-close></div>
+    <div class="notes__card" role="dialog" aria-modal="true" aria-label="Notes">
+      <aside class="notes__index">
+        <div class="notes__indexhead">
+          <h2 class="notes__heading">Notes</h2>
+          <button class="notes__new" id="notesNew" type="button" aria-label="New note" title="New note">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
+        <div class="notes__list" id="notesList" role="listbox" aria-label="Your notes"></div>
+      </aside>
+      <section class="notes__editor" id="notesEditor" aria-label="Note editor"></section>
+      <button class="notes__close" id="notesClose" type="button" aria-label="Close notes" data-notes-close>✕</button>
+    </div>`;
+  document.body.appendChild(wrap);
+})();
+
+Object.assign(els, {
+  notesOpen: $("notesOpen"),
+  notesOverlay: $("notesOverlay"),
+  notesList: $("notesList"),
+  notesEditor: $("notesEditor"),
+  notesNew: $("notesNew"),
+  notesClose: $("notesClose"),
+});
+
+// Compact relative time for the index ("just now", "5m ago", then a date).
+function noteRelTime(iso) {
+  const then = new Date(iso).getTime();
+  if (isNaN(then)) return "";
+  const secs = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (secs < 45) return "just now";
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+const noteTitleText = (n) => (n.title || "").trim() || "Untitled note";
+const noteSnippet = (n) => (n.body || "").trim().replace(/\s+/g, " ").slice(0, 90);
+
+// Bumped on every load/mutation so a slow in-flight GET can't clobber newer state (e.g. a
+// note created while the initial list was still loading).
+let _notesLoadSeq = 0;
+
+async function fetchNotes() {
+  const seq = ++_notesLoadSeq;
+  try {
+    const data = await (await fetch("/api/notes")).json();
+    if (seq !== _notesLoadSeq) return false; // superseded by a newer load/mutation
+    state.notes = Array.isArray(data.notes) ? data.notes : [];
+    return true;
+  } catch {
+    if (seq !== _notesLoadSeq) return false;
+    state.notes = [];
+    return true;
+  }
+}
+
+function renderNotesList() {
+  const box = els.notesList;
+  if (!box) return;
+  box.innerHTML = "";
+  if (!state.notes.length) {
+    box.innerHTML = `<p class="notes__listempty">No notes yet</p>`;
+    return;
+  }
+  for (const n of state.notes) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "noteitem";
+    b.setAttribute("role", "option");
+    b.setAttribute("aria-selected", String(n.id === state.noteId));
+    const snip = noteSnippet(n);
+    b.innerHTML = `
+      <span class="noteitem__title">${escapeHtml(noteTitleText(n))}</span>
+      <span class="noteitem__meta"><time>${escapeHtml(noteRelTime(n.updatedAt))}</time>${
+        snip ? `<span class="noteitem__snip">${escapeHtml(snip)}</span>` : ""
+      }</span>`;
+    b.addEventListener("click", () => selectNote(n.id));
+    box.appendChild(b);
+  }
+}
+
+function renderNoteEditor(n) {
+  const ed = els.notesEditor;
+  if (!ed) return;
+  if (!n) {
+    const has = state.notes.length > 0;
+    ed.innerHTML = `
+      <div class="notes__blank">
+        <p class="notes__blanktitle">${has ? "Pick a note" : "Nothing jotted yet"}</p>
+        <p class="notes__blanksub">${
+          has
+            ? "Choose one on the left, or start a fresh page."
+            : "Notes are freeform — a place for anything you just want to remember."
+        }</p>
+        <button class="btn-send" id="notesBlankNew" type="button">Start a note</button>
+      </div>`;
+    const nb = $("notesBlankNew");
+    if (nb) nb.addEventListener("click", createNote);
+    return;
+  }
+  ed.innerHTML = `
+    <div class="notes__edhead">
+      <span class="notes__saved" id="notesSaved" role="status" aria-live="polite"></span>
+    </div>
+    <input id="noteTitleInput" class="notes__edtitle" type="text" value="${escapeHtml(n.title || "")}"
+      placeholder="Title" aria-label="Note title" autocomplete="off" spellcheck="false" />
+    <textarea id="noteBodyInput" class="notes__edbody" placeholder="Start writing…" aria-label="Note body">${escapeHtml(n.body || "")}</textarea>
+    <div class="notes__edfoot">
+      <span class="notes__edtime">Edited ${escapeHtml(noteRelTime(n.updatedAt))}</span>
+      <button class="notes__del" id="noteDelete" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg>
+        Delete note
+      </button>
+    </div>`;
+  const title = $("noteTitleInput");
+  const body = $("noteBodyInput");
+  title.addEventListener("input", () => queueNoteSave(n));
+  body.addEventListener("input", () => queueNoteSave(n));
+  title.addEventListener("blur", flushNoteSave);
+  body.addEventListener("blur", flushNoteSave);
+  $("noteDelete").addEventListener("click", () => deleteNote(n));
+  // A note with a title is likely being revisited (cursor to the body); a blank one is new.
+  setTimeout(() => ((n.title || "").trim() ? body : title).focus(), 40);
+}
+
+function selectNote(id) {
+  flushNoteSave();
+  state.noteId = id;
+  renderNotesList();
+  renderNoteEditor(state.notes.find((x) => x.id === id) || null);
+}
+
+// --- autosave: debounced PATCH while typing, flushed on blur / select / close ---
+let _noteSaveTimer = null;
+let _notePending = null;
+
+function flashNoteSaved(msg) {
+  const el = $("notesSaved");
+  if (!el) return;
+  el.textContent = msg;
+  el.dataset.show = "true";
+  if (msg === "Saving…") return; // keep showing until the save resolves
+  clearTimeout(flashNoteSaved._t);
+  flashNoteSaved._t = setTimeout(() => (el.dataset.show = "false"), 1400);
+}
+
+function queueNoteSave(n) {
+  _notePending = n;
+  flashNoteSaved("Saving…");
+  clearTimeout(_noteSaveTimer);
+  _noteSaveTimer = setTimeout(flushNoteSave, NOTES_AUTOSAVE_MS);
+}
+
+async function flushNoteSave() {
+  clearTimeout(_noteSaveTimer);
+  const n = _notePending;
+  _notePending = null;
+  if (!n) return;
+  const title = $("noteTitleInput");
+  const body = $("noteBodyInput");
+  if (!title || !body) return;
+  const patch = { title: title.value, body: body.value };
+  // Optimistic: update the in-memory note + index immediately (doesn't touch the inputs,
+  // so the cursor stays put), then persist.
+  Object.assign(n, patch, { updatedAt: new Date().toISOString() });
+  renderNotesList();
+  try {
+    const res = await fetch(`/api/notes/${n.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    flashNoteSaved("Saved ✦");
+  } catch {
+    flashNoteSaved("Couldn't save");
+    toast("Couldn't save the note — check your connection", "error");
+  }
+}
+
+async function createNote() {
+  _notesLoadSeq++; // invalidate any in-flight open-load so it can't clobber this new note
+  try {
+    const res = await fetch("/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "", body: "" }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error();
+    state.notes = Array.isArray(data.notes) ? data.notes : [data.note, ...state.notes];
+    state.noteId = data.note.id;
+    renderNotesList();
+    // Edit the instance that lives in state.notes, so optimistic autosave updates also
+    // refresh the index (data.note is a separate object from the one in data.notes).
+    renderNoteEditor(state.notes.find((x) => x.id === data.note.id) || data.note);
+  } catch {
+    toast("Couldn't create the note.", "error");
+  }
+}
+
+async function deleteNote(n) {
+  if (!confirm("Delete this note? This can't be undone.")) return;
+  _notePending = null; // drop any pending autosave for the note we're removing
+  clearTimeout(_noteSaveTimer);
+  try {
+    await fetch(`/api/notes/${n.id}`, { method: "DELETE" });
+  } catch {
+    toast("Couldn't delete the note.", "error");
+    return;
+  }
+  state.notes = state.notes.filter((x) => x.id !== n.id);
+  if (state.noteId === n.id) state.noteId = state.notes[0]?.id || null;
+  renderNotesList();
+  renderNoteEditor(state.notes.find((x) => x.id === state.noteId) || null);
+}
+
+async function openNotes() {
+  if (!els.notesOverlay) return;
+  els.notesOverlay.hidden = false;
+  requestAnimationFrame(() => els.notesOverlay.classList.add("notes--open"));
+  // Show a clean slate immediately, then fill from the server.
+  state.noteId = null;
+  state.notes = [];
+  renderNotesList();
+  renderNoteEditor(null);
+  const ok = await fetchNotes();
+  // Bail if the load was superseded (e.g. user hit "+") or the overlay was closed meanwhile.
+  if (!ok || els.notesOverlay.hidden) return;
+  renderNotesList();
+  if (!state.noteId) {
+    if (state.notes.length) selectNote(state.notes[0].id);
+    else renderNoteEditor(null);
+  }
+}
+
+function closeNotes() {
+  if (!els.notesOverlay || els.notesOverlay.hidden) return;
+  flushNoteSave(); // commit anything in flight before leaving
+  els.notesOverlay.classList.remove("notes--open");
+  state.noteId = null;
+  clearTimeout(closeNotes._t);
+  closeNotes._t = setTimeout(() => (els.notesOverlay.hidden = true), 240);
+}
+
+if (els.notesOpen) els.notesOpen.addEventListener("click", openNotes);
+if (els.notesNew) els.notesNew.addEventListener("click", createNote);
+if (els.notesClose) els.notesClose.addEventListener("click", closeNotes);
+if (els.notesOverlay) {
+  els.notesOverlay.addEventListener("click", (e) => {
+    if (e.target.closest("[data-notes-close]")) closeNotes();
+  });
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && els.notesOverlay && !els.notesOverlay.hidden) {
+    e.stopPropagation();
+    closeNotes();
+  }
+});
+
 boot();

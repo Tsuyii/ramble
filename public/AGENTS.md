@@ -47,7 +47,14 @@ in the desktop shell's renderer. No framework, no build step.
   `body.dash` at boot (`!IS_WIDGET`); the widget will add it when it morphs to `dashboard`
   mode. Sidebar nav drives `state.filter` (`all`/`today`/`upcoming`/`completed`/`inbox`/a
   folderId) via `selectFilter` → `renderSidebar`+`renderTasks`. `renderSidebar()` runs in
-  `refresh()`. **Slice A done** (shell); Tags/detail-panel/modal/calendar/notes/stats pending.
+  `refresh()`. **Slice A done** (shell); Tags/detail-panel/modal/calendar/stats pending.
+- **Notes (ADR-0008) done.** Standalone freeform jots (`{id,title,body,timestamps}`), their own
+  `notes.json` store + `GET/POST/PATCH/DELETE /api/notes` (additive, keys stay server-side). The
+  UI is a self-contained two-pane overlay (index + autosaving title/body editor) built in
+  `app.js` and appended to `<body>` — the only shared-file touch is the sidebar **Notes** entry
+  after `#sideNav`. Independent of tasks/folders. Elements registered via `Object.assign(els,…)`;
+  events wired at the end of the init section; styles under `/* ===== Notes ===== */` (tokens, all
+  6 themes). Autosave is debounced + flushed on blur/select/close.
 - **Two window modes are the shell's job, not CSS.** The frontend signals intent via
   `ramble:mode`; the shell resizes/repositions and toggles always-on-top. Don't fake the
   morph with viewport tricks.
