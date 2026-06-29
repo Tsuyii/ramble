@@ -1,36 +1,40 @@
 import { test, expect } from "@playwright/test";
 
-// Coverage for the capture surface: the orb, the "or type" fallback, and the
-// type box that reveals on demand with its "Sort it" submit. No transcription is
-// triggered here — we only assert the capture UI wires up and renders.
+// Coverage for the capture surface: the orb and the type-to-brain-dump box.
+// The "or type" toggle only appears when voice is available (a Groq key is set).
+// With no key (e.g. in CI) the app boots straight into the type box and hides the
+// toggle — both paths must leave a usable type box, so these tests handle both.
 test.describe("capture surface", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("body")).toHaveClass(/dash/);
   });
 
-  test("renders the orb and the type fallback toggle", async ({ page }) => {
+  // Ensures the type box is open regardless of whether voice is available.
+  async function openTypebox(page) {
+    const toggle = page.locator("#typeToggle");
+    if (await toggle.isVisible()) await toggle.click();
+    await expect(page.locator("#typebox")).toHaveJSProperty("hidden", false);
+  }
+
+  test("renders the orb and a path to the type box", async ({ page }) => {
     await expect(page.locator("#capture")).toBeVisible();
     await expect(page.locator("#orb")).toBeVisible();
-    await expect(page.locator("#typeToggle")).toBeVisible();
+    // Either the voice fallback toggle is offered, or the type box is already open.
+    const toggleVisible = await page.locator("#typeToggle").isVisible();
+    const typeboxOpen = await page.locator("#typebox").evaluate((el) => !el.hidden);
+    expect(toggleVisible || typeboxOpen).toBeTruthy();
   });
 
-  test("reveals the type box with a Sort it button when the toggle is used", async ({ page }) => {
+  test("the type box opens with a Sort it button", async ({ page }) => {
+    await openTypebox(page);
     const typebox = page.locator("#typebox");
-    // The toggle flips the form's `hidden` property; assert on that rather than
-    // CSS visibility, since `.typebox` keeps display:flex in dashboard layout.
-    await expect(typebox).toHaveJSProperty("hidden", true);
-
-    await page.locator("#typeToggle").click();
-
-    await expect(typebox).toHaveJSProperty("hidden", false);
     await expect(typebox).toBeVisible();
-    await expect(page.locator("#typeInput")).toBeFocused();
     await expect(typebox.getByRole("button", { name: "Sort it" })).toBeVisible();
   });
 
   test("accepts typed input in the brain-dump box", async ({ page }) => {
-    await page.locator("#typeToggle").click();
+    await openTypebox(page);
     const input = page.locator("#typeInput");
     await input.fill("call the dentist, finish the deck by friday");
     await expect(input).toHaveValue("call the dentist, finish the deck by friday");
